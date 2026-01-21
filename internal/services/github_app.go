@@ -1,0 +1,211 @@
+package services
+
+import (
+	"context"
+	"fmt"
+	"net/http"
+	"os"
+	"strconv"
+
+	"github.com/bradleyfalzon/ghinstallation/v2"
+	"github.com/google/go-github/v57/github"
+	"github.com/nodeloc/git-store/internal/config"
+	"golang.org/x/oauth2"
+)
+
+type GitHubAppService struct {
+	config         *config.Config
+	appID          int64
+	installationID int64
+	privateKey     []byte
+}
+
+func NewGitHubAppService(cfg *config.Config) (*GitHubAppService, error) {
+	appID, err := strconv.ParseInt(cfg.GitHubAppID, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid GitHub App ID: %w", err)
+	}
+
+	installationID, err := strconv.ParseInt(cfg.GitHubAppInstallationID, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid GitHub App Installation ID: %w", err)
+	}
+
+	privateKey, err := os.ReadFile(cfg.GitHubAppPrivateKeyPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read GitHub App private key: %w", err)
+	}
+
+	return &GitHubAppService{
+		config:         cfg,
+		appID:          appID,
+		installationID: installationID,
+		privateKey:     privateKey,
+	}, nil
+}
+
+// GetInstallationClient returns a GitHub client authenticated as an installation
+func (s *GitHubAppService) GetInstallationClient(ctx context.Context, installationID int64) (*github.Client, error) {
+	itr, err := ghinstallation.New(http.DefaultTransport, s.appID, installationID, s.privateKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create installation transport: %w", err)
+	}
+
+	return github.NewClient(&http.Client{Transport: itr}), nil
+}
+
+// GrantRepositoryAccess grants access to a repository for a user's installation
+func (s *GitHubAppService) GrantRepositoryAccess(ctx context.Context, installationID int64, repoID int64) error {
+	client, err := s.GetInstallationClient(ctx, installationID)
+	if err != nil {
+		return err
+	}
+
+	// Add repository to installation
+	_, _, err = client.Apps.AddRepository(ctx, installationID, repoID)
+	if err != nil {
+		return fmt.Errorf("failed to grant repository access: %w", err)
+	}
+
+	return nil
+}
+
+// RevokeRepositoryAccess revokes access to a repository for a user's installation
+func (s *GitHubAppService) RevokeRepositoryAccess(ctx context.Context, installationID int64, repoID int64) error {
+	client, err := s.GetInstallationClient(ctx, installationID)
+	if err != nil {
+		return err
+	}
+
+	// Remove repository from installation
+	_, err = client.Apps.RemoveRepository(ctx, installationID, repoID)
+	if err != nil {
+		return fmt.Errorf("failed to revoke repository access: %w", err)
+	}
+
+	return nil
+}
+
+// ListInstallationRepositories lists all repositories accessible by the installation
+func (s *GitHubAppService) ListInstallationRepositories(ctx context.Context, installationID int64) ([]*github.Repository, error) {
+	client, err := s.GetInstallationClient(ctx, installationID)
+	if err != nil {
+		return nil, err
+	}
+
+	repos, _, err := client.Apps.ListRepos(ctx, &github.ListOptions{PerPage: 100})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list installation repositories: %w", err)
+	}
+
+	return repos.Repositories, nil
+}
+
+// GetRepository gets repository information
+func (s *GitHubAppService) GetRepository(ctx context.Context, owner, repo string) (*github.Repository, error) {
+	// Use app installation for authentication
+	client, err := s.GetInstallationClient(ctx, s.installationID)
+	if err != nil {
+		return nil, err
+	}
+
+	repository, _, err := client.Repositories.Get(ctx, owner, repo)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get repository: %w", err)
+	}
+
+	return repository, nil
+}
+
+// ListOrganizationRepositories lists all repositories in the organization
+func (s *GitHubAppService) ListOrganizationRepositories(ctx context.Context, org string) ([]*github.Repository, error) {
+	client, err := s.GetInstallationClient(ctx, s.installationID)
+	if err != nil {
+		return nil, err
+	}
+
+	opt := &github.RepositoryListByOrgOptions{
+		Type: "private",
+		ListOptions: github.ListOptions{
+			PerPage: 100,
+		},
+	}
+
+	var allRepos []*github.Repository
+	for {
+		repos, resp, err := client.Repositories.ListByOrg(ctx, org, opt)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list organization repositories: %w", err)
+		}
+
+		allRepos = append(allRepos, repos...)
+
+		if resp.NextPage == 0 {
+			break
+		}
+		opt.Page = resp.NextPage
+	}
+
+	return allRepos, nil
+}
+
+// CreateInstallationAccessToken creates a new installation access token
+func (s *GitHubAppService) CreateInstallationAccessToken(ctx context.Context, installationID int64, opts *github.InstallationTokenOptions) (*github.InstallationToken, error) {
+	itr, err := ghinstallation.New(http.DefaultTransport, s.appID, installationID, s.privateKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create installation transport: %w", err)
+	}
+
+	token, err := itr.Token(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create installation token: %w", err)
+	}
+
+	return &github.InstallationToken{
+		Token:     &token,
+		ExpiresAt: &github.Timestamp{},
+	}, nil
+}
+
+// ValidateInstallation checks if an installation exists and is active
+func (s *GitHubAppService) ValidateInstallation(ctx context.Context, installationID int64) (bool, error) {
+	client, err := s.GetInstallationClient(ctx, installationID)
+	if err != nil {
+		return false, err
+	}
+
+	// Try to list repos to validate the installation
+	_, _, err = client.Apps.ListRepos(ctx, &github.ListOptions{PerPage: 1})
+	if err != nil {
+		return false, nil
+	}
+
+	return true, nil
+}
+
+// GetInstallationToken returns an installation token for direct git operations
+func (s *GitHubAppService) GetInstallationToken(ctx context.Context, installationID int64) (string, error) {
+	itr, err := ghinstallation.New(http.DefaultTransport, s.appID, installationID, s.privateKey)
+	if err != nil {
+		return "", fmt.Errorf("failed to create installation transport: %w", err)
+	}
+
+	token, err := itr.Token(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to get installation token: %w", err)
+	}
+
+	return token, nil
+}
+
+// Helper to create an OAuth2 token source from installation token
+func (s *GitHubAppService) GetTokenSource(ctx context.Context, installationID int64) (oauth2.TokenSource, error) {
+	token, err := s.GetInstallationToken(ctx, installationID)
+	if err != nil {
+		return nil, err
+	}
+
+	return oauth2.StaticTokenSource(&oauth2.Token{
+		AccessToken: token,
+	}), nil
+}

@@ -1,0 +1,187 @@
+package router
+
+import (
+	"github.com/gin-gonic/gin"
+	"github.com/nodeloc/git-store/internal/config"
+	"github.com/nodeloc/git-store/internal/handlers"
+	"github.com/nodeloc/git-store/internal/middleware"
+	"gorm.io/gorm"
+)
+
+func SetupRoutes(r *gin.Engine, db *gorm.DB, cfg *config.Config) {
+	// Middleware
+	r.Use(middleware.CORSMiddleware())
+
+	// Initialize handlers
+	authHandler := handlers.NewAuthHandler(db, cfg)
+	pluginHandler := handlers.NewPluginHandler(db, cfg)
+	orderHandler := handlers.NewOrderHandler(db, cfg)
+	paymentHandler := handlers.NewPaymentHandler(db, cfg)
+	licenseHandler := handlers.NewLicenseHandler(db, cfg)
+	tutorialHandler := handlers.NewTutorialHandler(db, cfg)
+	adminHandler := handlers.NewAdminHandler(db, cfg)
+	dashboardHandler := handlers.NewDashboardHandler(db, cfg)
+
+	// Dev auth handler (only in development)
+	var devAuthHandler *handlers.DevAuthHandler
+	if cfg.AppEnv == "development" {
+		devAuthHandler = handlers.NewDevAuthHandler(db, cfg)
+	}
+
+	// Public routes
+	api := r.Group("/api")
+	{
+		// Health check
+		api.GET("/health", func(c *gin.Context) {
+			c.JSON(200, gin.H{"status": "ok"})
+		})
+
+		// Dev login (only in development)
+		if cfg.AppEnv == "development" && devAuthHandler != nil {
+			api.GET("/dev/login", devAuthHandler.DevLogin)
+		}
+
+		// Auth routes
+		auth := api.Group("/auth")
+		{
+			auth.GET("/github", authHandler.GitHubLogin)
+			auth.GET("/github/callback", authHandler.GitHubCallback)
+			auth.GET("/me", middleware.AuthMiddleware(cfg), authHandler.GetMe)
+			auth.POST("/logout", middleware.AuthMiddleware(cfg), authHandler.Logout)
+		}
+
+		// Public plugin routes
+		plugins := api.Group("/plugins")
+		{
+			plugins.GET("", pluginHandler.ListPlugins)
+			plugins.GET("/:slug", pluginHandler.GetPlugin)
+		}
+
+		// Public tutorial routes
+		tutorials := api.Group("/tutorials")
+		{
+			tutorials.GET("/public", tutorialHandler.ListPublicTutorials)
+			tutorials.GET("/:slug", tutorialHandler.GetTutorial)
+		}
+
+		// Payment webhook routes (no auth)
+		webhooks := api.Group("/webhooks")
+		{
+			webhooks.POST("/stripe", paymentHandler.StripeWebhook)
+			webhooks.POST("/paypal", paymentHandler.PayPalWebhook)
+			webhooks.POST("/alipay", paymentHandler.AlipayNotify)
+		}
+	}
+
+	// Protected routes (require authentication)
+	protected := api.Group("")
+	protected.Use(middleware.AuthMiddleware(cfg))
+	{
+		// User routes
+		user := protected.Group("/user")
+		{
+			user.GET("/licenses", licenseHandler.GetUserLicenses)
+			user.GET("/orders", orderHandler.GetUserOrders)
+			user.GET("/github-accounts", authHandler.GetGitHubAccounts)
+		}
+
+		// Order routes
+		orders := protected.Group("/orders")
+		{
+			orders.POST("", orderHandler.CreateOrder)
+			orders.GET("/:id", orderHandler.GetOrder)
+		}
+
+		// Payment routes
+		payments := protected.Group("/payments")
+		{
+			payments.POST("/stripe/create-intent", paymentHandler.CreateStripePaymentIntent)
+			payments.POST("/paypal/create-order", paymentHandler.CreatePayPalOrder)
+			payments.POST("/paypal/capture-order", paymentHandler.CapturePayPalOrder)
+			payments.POST("/alipay/create", paymentHandler.CreateAlipayPayment)
+		}
+
+		// License routes
+		licenses := protected.Group("/licenses")
+		{
+			licenses.GET("/:id", licenseHandler.GetLicense)
+			licenses.POST("/:id/renew", licenseHandler.RenewLicense)
+			licenses.GET("/:id/history", licenseHandler.GetLicenseHistory)
+		}
+
+		// Tutorial routes (protected)
+		tutorialsProtected := protected.Group("/tutorials")
+		{
+			tutorialsProtected.GET("", tutorialHandler.ListTutorials)
+		}
+	}
+
+	// Admin routes (require admin role)
+	admin := api.Group("/admin")
+	admin.Use(middleware.AuthMiddleware(cfg))
+	admin.Use(middleware.AdminMiddleware())
+	{
+		// Plugin management
+		adminPlugins := admin.Group("/plugins")
+		{
+			adminPlugins.GET("", adminHandler.ListAllPlugins)
+			adminPlugins.POST("", adminHandler.CreatePlugin)
+			adminPlugins.GET("/:id", adminHandler.GetPluginByID)
+			adminPlugins.PUT("/:id", adminHandler.UpdatePlugin)
+			adminPlugins.DELETE("/:id", adminHandler.DeletePlugin)
+			adminPlugins.POST("/sync-repos", adminHandler.SyncGitHubRepos)
+		}
+
+		// Order management
+		adminOrders := admin.Group("/orders")
+		{
+			adminOrders.GET("", adminHandler.ListAllOrders)
+			adminOrders.GET("/:id", adminHandler.GetOrderByID)
+			adminOrders.POST("/:id/refund", adminHandler.RefundOrder)
+		}
+
+		// License management
+		adminLicenses := admin.Group("/licenses")
+		{
+			adminLicenses.GET("", adminHandler.ListAllLicenses)
+			adminLicenses.GET("/:id", adminHandler.GetLicenseByID)
+			adminLicenses.POST("/:id/revoke", adminHandler.RevokeLicense)
+			adminLicenses.POST("/:id/extend", adminHandler.ExtendLicense)
+		}
+
+		// Tutorial management
+		adminTutorials := admin.Group("/tutorials")
+		{
+			adminTutorials.GET("", adminHandler.ListAllTutorials)
+			adminTutorials.POST("", adminHandler.CreateTutorial)
+			adminTutorials.GET("/:id", adminHandler.GetTutorialByID)
+			adminTutorials.PUT("/:id", adminHandler.UpdateTutorial)
+			adminTutorials.DELETE("/:id", adminHandler.DeleteTutorial)
+		}
+
+		// Statistics & Dashboard
+		adminStats := admin.Group("/statistics")
+		{
+			adminStats.GET("/dashboard", dashboardHandler.GetDashboardStats)
+			adminStats.GET("/revenue", dashboardHandler.GetRevenueStats)
+			adminStats.GET("/users", dashboardHandler.GetUserStats)
+			adminStats.GET("/plugins", dashboardHandler.GetPluginStats)
+		}
+
+		// System settings
+		adminSettings := admin.Group("/settings")
+		{
+			adminSettings.GET("", adminHandler.GetSettings)
+			adminSettings.PUT("", adminHandler.UpdateSettings)
+		}
+
+		// User management
+		adminUsers := admin.Group("/users")
+		{
+			adminUsers.GET("", adminHandler.ListAllUsers)
+			adminUsers.GET("/:id", adminHandler.GetUserByID)
+			adminUsers.PUT("/:id", adminHandler.UpdateUser)
+			adminUsers.DELETE("/:id", adminHandler.DeleteUser)
+		}
+	}
+}

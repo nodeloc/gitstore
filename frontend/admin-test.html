@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>管理后台测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+        }
+        .section {
+            margin-bottom: 30px;
+        }
+        .section h2 {
+            color: #666;
+            font-size: 18px;
+            margin-bottom: 15px;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-right: 10px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        button.secondary {
+            background: #008CBA;
+        }
+        button.secondary:hover {
+            background: #007399;
+        }
+        #output {
+            background: #f9f9f9;
+            border: 1px solid #ddd;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .token-info {
+            background: #e8f5e9;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+        .token-info p {
+            margin: 5px 0;
+            font-size: 14px;
+        }
+        .token-info code {
+            background: #fff;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 GitStore 管理后台测试工具</h1>
+        
+        <div class="section">
+            <h2>步骤 1: 获取管理员Token</h2>
+            <button onclick="getDevToken()">点击获取Token</button>
+            <div id="tokenInfo" class="token-info" style="display:none; margin-top:15px;"></div>
+        </div>
+
+        <div class="section">
+            <h2>步骤 2: 测试管理员接口</h2>
+            <button class="secondary" onclick="testPlugins()">获取插件列表</button>
+            <button class="secondary" onclick="testUsers()">获取用户列表</button>
+            <button class="secondary" onclick="testDashboard()">获取仪表盘</button>
+        </div>
+
+        <div class="section">
+            <h2>响应结果:</h2>
+            <div id="output">点击上方按钮开始测试...</div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8080/api';
+        let currentToken = null;
+
+        async function getDevToken() {
+            try {
+                const response = await fetch(`${API_BASE}/dev/login?email=admin@test.com`);
+                const data = await response.json();
+                
+                if (data.token) {
+                    currentToken = data.token;
+                    
+                    // 保存到 localStorage
+                    localStorage.setItem('token', currentToken);
+                    
+                    // 显示token信息
+                    document.getElementById('tokenInfo').style.display = 'block';
+                    document.getElementById('tokenInfo').innerHTML = `
+                        <p><strong>✅ Token获取成功!</strong></p>
+                        <p>用户: ${data.user.email}</p>
+                        <p>角色: <code>${data.user.role}</code></p>
+                        <p>Token已保存到 localStorage</p>
+                    `;
+                    
+                    showOutput('Token获取成功:\n' + JSON.stringify(data, null, 2));
+                } else {
+                    showOutput('错误: ' + JSON.stringify(data, null, 2));
+                }
+            } catch (error) {
+                showOutput('请求失败: ' + error.message);
+            }
+        }
+
+        async function testPlugins() {
+            await testAPI('/admin/plugins', '插件列表');
+        }
+
+        async function testUsers() {
+            await testAPI('/admin/users', '用户列表');
+        }
+
+        async function testDashboard() {
+            await testAPI('/admin/statistics/dashboard', '仪表盘统计');
+        }
+
+        async function testAPI(endpoint, name) {
+            if (!currentToken) {
+                currentToken = localStorage.getItem('token');
+                if (!currentToken) {
+                    showOutput('错误: 请先获取Token');
+                    return;
+                }
+            }
+
+            try {
+                showOutput(`正在请求 ${name}...`);
+                
+                const response = await fetch(`${API_BASE}${endpoint}`, {
+                    headers: {
+                        'Authorization': `Bearer ${currentToken}`
+                    }
+                });
+
+                const data = await response.json();
+                
+                showOutput(
+                    `=== ${name} ===\n` +
+                    `状态码: ${response.status}\n` +
+                    `响应:\n${JSON.stringify(data, null, 2)}`
+                );
+            } catch (error) {
+                showOutput(`请求 ${name} 失败: ${error.message}`);
+            }
+        }
+
+        function showOutput(text) {
+            document.getElementById('output').textContent = text;
+        }
+
+        // 页面加载时检查是否已有token
+        window.onload = function() {
+            const savedToken = localStorage.getItem('token');
+            if (savedToken) {
+                currentToken = savedToken;
+                document.getElementById('tokenInfo').style.display = 'block';
+                document.getElementById('tokenInfo').innerHTML = `
+                    <p><strong>✅ 检测到已保存的Token</strong></p>
+                    <p>可以直接测试管理员接口</p>
+                `;
+            }
+        };
+    </script>
+</body>
+</html>

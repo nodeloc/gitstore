@@ -1,0 +1,84 @@
+package services
+
+import (
+	"fmt"
+
+	"github.com/stripe/stripe-go/v76"
+	"github.com/stripe/stripe-go/v76/paymentintent"
+	"github.com/stripe/stripe-go/v76/webhook"
+	"github.com/nodeloc/git-store/internal/config"
+)
+
+type StripeService struct {
+	config *config.Config
+}
+
+func NewStripeService(cfg *config.Config) *StripeService {
+	stripe.Key = cfg.StripeSecretKey
+	return &StripeService{
+		config: cfg,
+	}
+}
+
+type PaymentIntentRequest struct {
+	Amount      int64             // Amount in cents
+	Currency    string            // e.g., "usd"
+	Description string
+	Metadata    map[string]string
+}
+
+func (s *StripeService) CreatePaymentIntent(req *PaymentIntentRequest) (*stripe.PaymentIntent, error) {
+	params := &stripe.PaymentIntentParams{
+		Amount:      stripe.Int64(req.Amount),
+		Currency:    stripe.String(req.Currency),
+		Description: stripe.String(req.Description),
+	}
+
+	// Add metadata
+	for key, value := range req.Metadata {
+		params.AddMetadata(key, value)
+	}
+
+	pi, err := paymentintent.New(params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create payment intent: %w", err)
+	}
+
+	return pi, nil
+}
+
+func (s *StripeService) GetPaymentIntent(paymentIntentID string) (*stripe.PaymentIntent, error) {
+	pi, err := paymentintent.Get(paymentIntentID, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get payment intent: %w", err)
+	}
+
+	return pi, nil
+}
+
+func (s *StripeService) ConfirmPaymentIntent(paymentIntentID string) (*stripe.PaymentIntent, error) {
+	pi, err := paymentintent.Confirm(paymentIntentID, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to confirm payment intent: %w", err)
+	}
+
+	return pi, nil
+}
+
+func (s *StripeService) CancelPaymentIntent(paymentIntentID string) (*stripe.PaymentIntent, error) {
+	pi, err := paymentintent.Cancel(paymentIntentID, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to cancel payment intent: %w", err)
+	}
+
+	return pi, nil
+}
+
+func (s *StripeService) VerifyWebhookSignature(payload []byte, signature string) (stripe.Event, error) {
+	event, err := webhook.ConstructEvent(payload, signature, s.config.StripeWebhookSecret)
+	if err != nil {
+		return event, fmt.Errorf("failed to verify webhook signature: %w", err)
+	}
+
+	return event, nil
+}
