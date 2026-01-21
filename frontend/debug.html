@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>调试工具 - GitStore</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Courier New', monospace;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: #4ec9b0;
+            margin-bottom: 20px;
+        }
+        .section {
+            background: #252526;
+            border: 1px solid #3e3e42;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .section h2 {
+            color: #569cd6;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+        .info-item {
+            margin: 10px 0;
+            padding: 10px;
+            background: #1e1e1e;
+            border-left: 3px solid #4ec9b0;
+        }
+        .label {
+            color: #9cdcfe;
+            font-weight: bold;
+        }
+        .value {
+            color: #ce9178;
+            word-break: break-all;
+        }
+        .success {
+            border-left-color: #4ec9b0;
+        }
+        .error {
+            border-left-color: #f48771;
+        }
+        .warning {
+            border-left-color: #dcdcaa;
+        }
+        button {
+            background: #0e639c;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+            margin-top: 10px;
+        }
+        button:hover {
+            background: #1177bb;
+        }
+        .btn-danger {
+            background: #a1260d;
+        }
+        .btn-danger:hover {
+            background: #c72e0f;
+        }
+        .btn-success {
+            background: #107c10;
+        }
+        .btn-success:hover {
+            background: #13a313;
+        }
+        pre {
+            background: #1e1e1e;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+            color: #d4d4d4;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 GitStore 调试工具</h1>
+        
+        <div class="section">
+            <h2>📦 LocalStorage 状态</h2>
+            <div id="localStorageStatus"></div>
+            <button onclick="checkLocalStorage()">刷新检查</button>
+            <button class="btn-danger" onclick="clearAll()">清空所有数据</button>
+        </div>
+
+        <div class="section">
+            <h2>🔑 Token 信息</h2>
+            <div id="tokenInfo"></div>
+            <button onclick="decodeToken()">解码Token</button>
+        </div>
+
+        <div class="section">
+            <h2>👤 用户信息</h2>
+            <div id="userInfo"></div>
+        </div>
+
+        <div class="section">
+            <h2>🧪 API 测试</h2>
+            <button onclick="testAuthMe()">测试 /api/auth/me</button>
+            <button onclick="testAdminPlugins()">测试 /api/admin/plugins</button>
+            <div id="apiTest" style="margin-top: 15px;"></div>
+        </div>
+
+        <div class="section">
+            <h2>🚀 快捷操作</h2>
+            <button class="btn-success" onclick="devLogin()">开发登录</button>
+            <button onclick="goToAdmin()">跳转到管理后台</button>
+            <button onclick="goToHome()">跳转到首页</button>
+        </div>
+    </div>
+
+    <script>
+        function showInfo(containerId, html) {
+            document.getElementById(containerId).innerHTML = html;
+        }
+
+        function checkLocalStorage() {
+            const token = localStorage.getItem('token');
+            const user = localStorage.getItem('user');
+            
+            let html = '';
+            
+            if (token) {
+                html += `<div class="info-item success">
+                    <div class="label">✅ Token:</div>
+                    <div class="value">${token.substring(0, 50)}...</div>
+                </div>`;
+            } else {
+                html += `<div class="info-item error">
+                    <div class="label">❌ Token:</div>
+                    <div class="value">未找到</div>
+                </div>`;
+            }
+            
+            if (user) {
+                html += `<div class="info-item success">
+                    <div class="label">✅ User:</div>
+                    <div class="value">${user}</div>
+                </div>`;
+            } else {
+                html += `<div class="info-item error">
+                    <div class="label">❌ User:</div>
+                    <div class="value">未找到</div>
+                </div>`;
+            }
+            
+            showInfo('localStorageStatus', html);
+            checkUser();
+            decodeToken();
+        }
+
+        function checkUser() {
+            const userStr = localStorage.getItem('user');
+            if (!userStr) {
+                showInfo('userInfo', '<div class="info-item error">未找到用户信息</div>');
+                return;
+            }
+            
+            try {
+                const user = JSON.parse(userStr);
+                const html = `
+                    <div class="info-item success">
+                        <div class="label">ID:</div>
+                        <div class="value">${user.id || 'N/A'}</div>
+                    </div>
+                    <div class="info-item success">
+                        <div class="label">Email:</div>
+                        <div class="value">${user.email || 'N/A'}</div>
+                    </div>
+                    <div class="info-item success">
+                        <div class="label">Name:</div>
+                        <div class="value">${user.name || 'N/A'}</div>
+                    </div>
+                    <div class="info-item ${user.role === 'admin' ? 'success' : 'warning'}">
+                        <div class="label">Role:</div>
+                        <div class="value">${user.role || 'N/A'}</div>
+                    </div>
+                `;
+                showInfo('userInfo', html);
+            } catch (e) {
+                showInfo('userInfo', `<div class="info-item error">解析失败: ${e.message}</div>`);
+            }
+        }
+
+        function decodeToken() {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                showInfo('tokenInfo', '<div class="info-item error">未找到Token</div>');
+                return;
+            }
+            
+            try {
+                const parts = token.split('.');
+                if (parts.length !== 3) {
+                    throw new Error('Token格式错误');
+                }
+                
+                const payload = JSON.parse(atob(parts[1]));
+                const exp = new Date(payload.exp * 1000);
+                const iat = new Date(payload.iat * 1000);
+                const now = new Date();
+                const isExpired = now > exp;
+                
+                const html = `
+                    <div class="info-item ${isExpired ? 'error' : 'success'}">
+                        <div class="label">状态:</div>
+                        <div class="value">${isExpired ? '❌ 已过期' : '✅ 有效'}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="label">用户ID:</div>
+                        <div class="value">${payload.user_id}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="label">邮箱:</div>
+                        <div class="value">${payload.email}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="label">角色:</div>
+                        <div class="value">${payload.role}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="label">签发时间:</div>
+                        <div class="value">${iat.toLocaleString()}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="label">过期时间:</div>
+                        <div class="value">${exp.toLocaleString()}</div>
+                    </div>
+                    <details style="margin-top: 10px;">
+                        <summary style="cursor: pointer; color: #569cd6;">查看完整Payload</summary>
+                        <pre>${JSON.stringify(payload, null, 2)}</pre>
+                    </details>
+                `;
+                showInfo('tokenInfo', html);
+            } catch (e) {
+                showInfo('tokenInfo', `<div class="info-item error">解码失败: ${e.message}</div>`);
+            }
+        }
+
+        async function testAuthMe() {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                showInfo('apiTest', '<div class="info-item error">请先登录</div>');
+                return;
+            }
+            
+            try {
+                const response = await fetch('http://localhost:8080/api/auth/me', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await response.json();
+                showInfo('apiTest', `
+                    <div class="info-item ${response.ok ? 'success' : 'error'}">
+                        <div class="label">状态码: ${response.status}</div>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    </div>
+                `);
+            } catch (e) {
+                showInfo('apiTest', `<div class="info-item error">请求失败: ${e.message}</div>`);
+            }
+        }
+
+        async function testAdminPlugins() {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                showInfo('apiTest', '<div class="info-item error">请先登录</div>');
+                return;
+            }
+            
+            try {
+                const response = await fetch('http://localhost:8080/api/admin/plugins', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await response.json();
+                showInfo('apiTest', `
+                    <div class="info-item ${response.ok ? 'success' : 'error'}">
+                        <div class="label">状态码: ${response.status}</div>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    </div>
+                `);
+            } catch (e) {
+                showInfo('apiTest', `<div class="info-item error">请求失败: ${e.message}</div>`);
+            }
+        }
+
+        async function devLogin() {
+            try {
+                const response = await fetch('http://localhost:8080/api/dev/login?email=admin@test.com');
+                const data = await response.json();
+                
+                if (data.token) {
+                    localStorage.setItem('token', data.token);
+                    localStorage.setItem('user', JSON.stringify(data.user));
+                    alert('✅ 登录成功！');
+                    checkLocalStorage();
+                } else {
+                    alert('❌ 登录失败');
+                }
+            } catch (e) {
+                alert('❌ 请求失败: ' + e.message);
+            }
+        }
+
+        function clearAll() {
+            if (confirm('确定要清空所有数据吗？')) {
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                alert('✅ 已清空');
+                checkLocalStorage();
+            }
+        }
+
+        function goToAdmin() {
+            window.location.href = 'http://localhost:3002/admin';
+        }
+
+        function goToHome() {
+            window.location.href = 'http://localhost:3002/';
+        }
+
+        // 页面加载时自动检查
+        window.onload = checkLocalStorage;
+    </script>
+</body>
+</html>

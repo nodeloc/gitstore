@@ -160,10 +160,17 @@ func (h *AuthHandler) GitHubCallback(c *gin.Context) {
 }
 
 func (h *AuthHandler) GetMe(c *gin.Context) {
-	userID := c.GetString("user_id")
-	uid, err := uuid.Parse(userID)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+	// Get user_id from context (set by AuthMiddleware)
+	userIDValue, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	// userIDValue is uuid.UUID type from middleware
+	uid, ok := userIDValue.(uuid.UUID)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user ID format"})
 		return
 	}
 
@@ -187,10 +194,15 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 }
 
 func (h *AuthHandler) GetGitHubAccounts(c *gin.Context) {
-	userID := c.GetString("user_id")
-	uid, err := uuid.Parse(userID)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+	userIDValue, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	uid, ok := userIDValue.(uuid.UUID)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user ID format"})
 		return
 	}
 

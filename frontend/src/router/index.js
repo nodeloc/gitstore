@@ -65,19 +65,33 @@ const router = createRouter({
 // Navigation guards
 router.beforeEach((to, from, next) => {
   const authStore = useAuthStore()
+  
+  console.log('🔍 Route guard check:', {
+    path: to.path,
+    requiresAuth: to.meta.requiresAuth,
+    requiresAdmin: to.meta.requiresAdmin,
+    isAuthenticated: authStore.isAuthenticated,
+    isAdmin: authStore.isAdmin,
+    hasToken: !!authStore.token,
+    hasUser: !!authStore.user,
+    userRole: authStore.user?.role
+  })
 
   // Check if route requires authentication
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {
+    console.log('❌ Auth required but not authenticated, redirecting to home')
     next({ name: 'home' })
     return
   }
 
   // Check if route requires admin
   if (to.meta.requiresAdmin && !authStore.isAdmin) {
+    console.log('❌ Admin required but not admin, redirecting to dashboard')
     next({ name: 'dashboard' })
     return
   }
 
+  console.log('✅ Route guard passed')
   next()
 })
 
