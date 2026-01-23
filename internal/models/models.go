@@ -46,9 +46,9 @@ type Plugin struct {
 	Slug                     string    `gorm:"unique;not null" json:"slug"`
 	Description              string    `json:"description"`
 	LongDescription          string    `json:"long_description"`
-	GitHubRepoID             int64     `gorm:"unique;not null" json:"github_repo_id"`
-	GitHubRepoURL            string    `gorm:"not null" json:"github_repo_url"`
-	GitHubRepoName           string    `gorm:"not null" json:"github_repo_name"`
+	GitHubRepoID             int64     `gorm:"column:github_repo_id;not null" json:"github_repo_id"`
+	GitHubRepoURL            string    `gorm:"column:github_repo_url;not null" json:"github_repo_url"`
+	GitHubRepoName           string    `gorm:"column:github_repo_name;not null" json:"github_repo_name"`
 	Price                    float64   `gorm:"type:decimal(10,2);default:0.00" json:"price"`
 	Currency                 string    `gorm:"default:'USD'" json:"currency"`
 	DefaultMaintenanceMonths int       `gorm:"default:12" json:"default_maintenance_months"`
@@ -75,7 +75,7 @@ type Order struct {
 	PluginID             uuid.UUID  `gorm:"type:uuid;not null" json:"plugin_id"`
 	Amount               float64    `gorm:"type:decimal(10,2);not null" json:"amount"`
 	Currency             string     `gorm:"default:'USD'" json:"currency"`
-	PaymentMethod        string     `gorm:"not null" json:"payment_method"` // stripe, paypal, alipay
+	PaymentMethod        string     `gorm:"not null" json:"payment_method"`          // stripe, paypal, alipay
 	PaymentStatus        string     `gorm:"default:'pending'" json:"payment_status"` // pending, paid, failed, refunded
 	PaymentIntentID      string     `json:"payment_intent_id"`
 	PaymentTransactionID string     `json:"payment_transaction_id"`
@@ -103,10 +103,10 @@ type License struct {
 	CreatedAt        time.Time  `json:"created_at"`
 	UpdatedAt        time.Time  `json:"updated_at"`
 
-	User          User          `gorm:"foreignKey:UserID" json:"user,omitempty"`
-	Plugin        Plugin        `gorm:"foreignKey:PluginID" json:"plugin,omitempty"`
-	Order         Order         `gorm:"foreignKey:OrderID" json:"order,omitempty"`
-	GitHubAccount GitHubAccount `gorm:"foreignKey:GitHubAccountID" json:"github_account,omitempty"`
+	User          User             `gorm:"foreignKey:UserID" json:"user,omitempty"`
+	Plugin        Plugin           `gorm:"foreignKey:PluginID" json:"plugin,omitempty"`
+	Order         Order            `gorm:"foreignKey:OrderID" json:"order,omitempty"`
+	GitHubAccount GitHubAccount    `gorm:"foreignKey:GitHubAccountID" json:"github_account,omitempty"`
 	History       []LicenseHistory `gorm:"foreignKey:LicenseID" json:"history,omitempty"`
 }
 

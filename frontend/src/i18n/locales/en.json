@@ -62,6 +62,16 @@
     "noPlugins": "No plugins found",
     "loading": "Loading plugins..."
   },
+  "plugin": {
+    "details": "Details",
+    "price": "Price",
+    "version": "Version",
+    "purchase": "Purchase Now",
+    "notFound": "Plugin not found",
+    "description": "Description",
+    "category": "Category",
+    "downloads": "Downloads"
+  },
   "pluginDetail": {
     "backToList": "Back to List",
     "price": "Price",

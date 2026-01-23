@@ -17,10 +17,10 @@ import (
 )
 
 type AuthHandler struct {
-	db                *gorm.DB
-	config            *config.Config
-	githubOAuthSvc    *services.GitHubOAuthService
-	stateStore        map[string]bool // In production, use Redis
+	db             *gorm.DB
+	config         *config.Config
+	githubOAuthSvc *services.GitHubOAuthService
+	stateStore     map[string]bool // In production, use Redis
 }
 
 func NewAuthHandler(db *gorm.DB, cfg *config.Config) *AuthHandler {
@@ -105,7 +105,7 @@ func (h *AuthHandler) GitHubCallback(c *gin.Context) {
 
 		// Check if this is the admin user
 		if primaryEmail == h.config.AdminEmail ||
-		   (h.config.AdminGitHubID != "" && h.config.AdminGitHubID == fmt.Sprintf("%d", githubUser.GetID())) {
+			(h.config.AdminGitHubID != "" && h.config.AdminGitHubID == fmt.Sprintf("%d", githubUser.GetID())) {
 			user.Role = "admin"
 		}
 
@@ -147,16 +147,12 @@ func (h *AuthHandler) GitHubCallback(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"token": jwtToken,
-		"user": gin.H{
-			"id":         user.ID,
-			"email":      user.Email,
-			"name":       user.Name,
-			"avatar_url": user.AvatarURL,
-			"role":       user.Role,
-		},
-	})
+	// Redirect to frontend with token
+	frontendURL := h.config.FrontendURL
+	if frontendURL == "" {
+		frontendURL = "http://localhost:3001"
+	}
+	c.Redirect(http.StatusFound, fmt.Sprintf("%s/auth/callback?token=%s", frontendURL, jwtToken))
 }
 
 func (h *AuthHandler) GetMe(c *gin.Context) {

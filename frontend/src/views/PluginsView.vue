@@ -36,8 +36,8 @@ const loading = ref(false)
 onMounted(async () => {
   loading.value = true
   try {
-    const response = await api.get('/api/plugins')
-    plugins.value = response.data || []
+    const response = await api.get('/plugins')
+    plugins.value = response.data.plugins || []
   } catch (error) {
     console.error('Failed to load plugins:', error)
   } finally {

@@ -1,16 +1,31 @@
 package router
 
 import (
+	"log"
+
 	"github.com/gin-gonic/gin"
 	"github.com/nodeloc/git-store/internal/config"
 	"github.com/nodeloc/git-store/internal/handlers"
 	"github.com/nodeloc/git-store/internal/middleware"
+	"github.com/nodeloc/git-store/internal/services"
 	"gorm.io/gorm"
 )
 
 func SetupRoutes(r *gin.Engine, db *gorm.DB, cfg *config.Config) {
 	// Middleware
 	r.Use(middleware.CORSMiddleware())
+
+	// Initialize GitHub App Service (optional, may fail if not configured)
+	var githubAppSvc *services.GitHubAppService
+	if cfg.GitHubAppID != "" && cfg.GitHubAppPrivateKeyPath != "" {
+		svc, err := services.NewGitHubAppService(cfg)
+		if err != nil {
+			log.Printf("Warning: Failed to initialize GitHub App Service: %v", err)
+		} else {
+			githubAppSvc = svc
+			log.Println("GitHub App Service initialized successfully")
+		}
+	}
 
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(db, cfg)
@@ -19,7 +34,7 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, cfg *config.Config) {
 	paymentHandler := handlers.NewPaymentHandler(db, cfg)
 	licenseHandler := handlers.NewLicenseHandler(db, cfg)
 	tutorialHandler := handlers.NewTutorialHandler(db, cfg)
-	adminHandler := handlers.NewAdminHandler(db, cfg)
+	adminHandler := handlers.NewAdminHandler(db, cfg, githubAppSvc)
 	dashboardHandler := handlers.NewDashboardHandler(db, cfg)
 
 	// Dev auth handler (only in development)
@@ -54,6 +69,7 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, cfg *config.Config) {
 		plugins := api.Group("/plugins")
 		{
 			plugins.GET("", pluginHandler.ListPlugins)
+			plugins.GET("/id/:id", pluginHandler.GetPluginByID)
 			plugins.GET("/:slug", pluginHandler.GetPlugin)
 		}
 
@@ -130,6 +146,12 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, cfg *config.Config) {
 			adminPlugins.PUT("/:id", adminHandler.UpdatePlugin)
 			adminPlugins.DELETE("/:id", adminHandler.DeletePlugin)
 			adminPlugins.POST("/sync-repos", adminHandler.SyncGitHubRepos)
+		}
+
+		// GitHub integration
+		adminGitHub := admin.Group("/github")
+		{
+			adminGitHub.GET("/repositories", adminHandler.ListGitHubRepos)
 		}
 
 		// Order management

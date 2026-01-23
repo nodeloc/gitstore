@@ -9,16 +9,24 @@
 
 <script setup>
 import { onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
+const route = useRoute()
 const authStore = useAuthStore()
 
 onMounted(async () => {
   try {
-    await authStore.handleCallback()
-    router.push('/dashboard')
+    const token = route.query.token
+    if (token) {
+      // Save token and fetch user info
+      localStorage.setItem('token', token)
+      await authStore.fetchUser()
+      router.push('/dashboard')
+    } else {
+      throw new Error('No token received')
+    }
   } catch (error) {
     console.error('Auth callback failed:', error)
     router.push('/')

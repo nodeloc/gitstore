@@ -44,6 +44,11 @@ func NewGitHubAppService(cfg *config.Config) (*GitHubAppService, error) {
 	}, nil
 }
 
+// InstallationID returns the configured installation ID
+func (s *GitHubAppService) InstallationID() int64 {
+	return s.installationID
+}
+
 // GetInstallationClient returns a GitHub client authenticated as an installation
 func (s *GitHubAppService) GetInstallationClient(ctx context.Context, installationID int64) (*github.Client, error) {
 	itr, err := ghinstallation.New(http.DefaultTransport, s.appID, installationID, s.privateKey)

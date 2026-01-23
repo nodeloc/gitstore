@@ -8,6 +8,16 @@
       <h1 class="text-4xl font-bold mb-4">{{ plugin.name }}</h1>
       <p class="text-xl mb-8">{{ plugin.description }}</p>
       
+      <!-- Long Description -->
+      <div v-if="plugin.long_description" class="card bg-base-100 shadow-xl mb-8">
+        <div class="card-body">
+          <h2 class="card-title">{{ $t('plugin.description') }}</h2>
+          <div class="prose max-w-none">
+            <p class="whitespace-pre-wrap">{{ plugin.long_description }}</p>
+          </div>
+        </div>
+      </div>
+      
       <div class="card bg-base-100 shadow-xl mb-8">
         <div class="card-body">
           <h2 class="card-title">{{ $t('plugin.details') }}</h2>
@@ -16,7 +26,13 @@
               <strong>{{ $t('plugin.price') }}:</strong> ${{ plugin.price }}
             </div>
             <div>
-              <strong>{{ $t('plugin.version') }}:</strong> {{ plugin.version }}
+              <strong>{{ $t('plugin.version') }}:</strong> {{ plugin.version || 'N/A' }}
+            </div>
+            <div v-if="plugin.category">
+              <strong>{{ $t('plugin.category') }}:</strong> {{ plugin.category }}
+            </div>
+            <div>
+              <strong>{{ $t('plugin.downloads') }}:</strong> {{ plugin.download_count || 0 }}
             </div>
           </div>
           <div class="card-actions justify-end mt-4">
@@ -47,8 +63,8 @@ const loading = ref(false)
 onMounted(async () => {
   loading.value = true
   try {
-    const response = await api.get(`/api/plugins/${route.params.slug}`)
-    plugin.value = response.data
+    const response = await api.get(`/plugins/${route.params.slug}`)
+    plugin.value = response.data.plugin
   } catch (error) {
     console.error('Failed to load plugin:', error)
   } finally {
