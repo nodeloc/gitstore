@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -11,6 +13,7 @@ import (
 	"github.com/nodeloc/git-store/internal/config"
 	"github.com/nodeloc/git-store/internal/models"
 	"github.com/nodeloc/git-store/internal/services"
+	"github.com/nodeloc/git-store/internal/utils"
 	"gorm.io/gorm"
 )
 
@@ -50,7 +53,7 @@ func (h *PluginHandler) GetPluginByID(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid plugin ID"})
 		return
 	}
-	
+
 	var plugin models.Plugin
 	if err := h.db.Where("id = ? AND status = ?", pluginUUID, "published").First(&plugin).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Plugin not found"})
@@ -140,12 +143,23 @@ func (h *OrderHandler) GetUserOrders(c *gin.Context) {
 
 // PaymentHandler handles payment-related requests
 type PaymentHandler struct {
-	db     *gorm.DB
-	config *config.Config
+	db            *gorm.DB
+	config        *config.Config
+	alipayService *services.AlipayService
 }
 
 func NewPaymentHandler(db *gorm.DB, cfg *config.Config) *PaymentHandler {
-	return &PaymentHandler{db: db, config: cfg}
+	// 初始化易支付服务
+	alipayService, err := services.NewAlipayService(cfg)
+	if err != nil {
+		log.Printf("Warning: Failed to initialize Alipay service: %v", err)
+	}
+
+	return &PaymentHandler{
+		db:            db,
+		config:        cfg,
+		alipayService: alipayService,
+	}
 }
 
 func (h *PaymentHandler) CreateStripePaymentIntent(c *gin.Context) {
@@ -184,16 +198,58 @@ func (h *PaymentHandler) CreateAlipayPayment(c *gin.Context) {
 		return
 	}
 
-	// TODO: Implement real Alipay payment
-	// For now, return a mock payment URL
-	payURL := fmt.Sprintf("https://example.com/alipay/pay?order_id=%s&amount=%.2f", order.ID, order.Amount)
-	
-	c.JSON(http.StatusOK, gin.H{
-		"pay_url": payURL,
+	// 检查易支付服务是否可用
+	if h.alipayService == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"error": "Alipay service is not configured",
+		})
+		return
+	}
+
+	// 获取客户端IP
+	clientIP := c.ClientIP()
+	if clientIP == "" || clientIP == "::1" {
+		clientIP = "127.0.0.1"
+	}
+
+	// 创建易支付订单
+	paymentReq := &services.AlipayTradeRequest{
+		OutTradeNo:  order.ID.String(),
+		TotalAmount: order.Amount,
+		Subject:     fmt.Sprintf("%s - License", order.Plugin.Name),
+		Body:        fmt.Sprintf("Order ID: %s", order.ID.String()),
+		NotifyURL:   h.config.AppURL + "/api/webhooks/alipay",
+		ReturnURL:   h.config.FrontendURL + "/payment/success",
+		ClientIP:    clientIP,
+	}
+
+	result, err := h.alipayService.CreatePayment(paymentReq)
+	if err != nil {
+		log.Printf("Failed to create Alipay payment: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create payment"})
+		return
+	}
+
+	// 构建响应，根据返回的字段类型返回支付信息
+	response := gin.H{
+		"trade_no": result.TradeNo,
 		"order_id": order.ID,
-		"amount": order.Amount,
-		"message": "Alipay payment URL generated (DEMO MODE)",
-	})
+		"amount":   order.Amount,
+	}
+
+	// 返回支付URL、二维码或小程序跳转链接
+	if result.PayURL != "" {
+		response["pay_url"] = result.PayURL
+		response["pay_type"] = "redirect"
+	} else if result.QRCode != "" {
+		response["qrcode"] = result.QRCode
+		response["pay_type"] = "qrcode"
+	} else if result.URLScheme != "" {
+		response["url_scheme"] = result.URLScheme
+		response["pay_type"] = "urlscheme"
+	}
+
+	c.JSON(http.StatusOK, response)
 }
 
 func (h *PaymentHandler) StripeWebhook(c *gin.Context) {
@@ -205,7 +261,113 @@ func (h *PaymentHandler) PayPalWebhook(c *gin.Context) {
 }
 
 func (h *PaymentHandler) AlipayNotify(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"message": "Alipay notify - to be implemented"})
+	// 检查易支付服务是否可用
+	if h.alipayService == nil {
+		log.Printf("Alipay service is not configured")
+		c.String(http.StatusServiceUnavailable, "fail")
+		return
+	}
+
+	// 获取所有POST参数
+	if err := c.Request.ParseForm(); err != nil {
+		log.Printf("Failed to parse form: %v", err)
+		c.String(http.StatusBadRequest, "fail")
+		return
+	}
+
+	// 转换为map[string]string
+	params := make(map[string]string)
+	for key, values := range c.Request.PostForm {
+		if len(values) > 0 {
+			params[key] = values[0]
+		}
+	}
+
+	// 验证签名
+	if err := h.alipayService.VerifyNotify(params); err != nil {
+		log.Printf("Failed to verify Alipay signature: %v", err)
+		c.String(http.StatusBadRequest, "fail")
+		return
+	}
+
+	// 获取关键参数
+	tradeStatus := params["trade_status"] // 订单状态
+	outTradeNo := params["out_trade_no"]  // 商户订单号
+	tradeNo := params["trade_no"]         // 平台订单号
+
+	// 解析订单ID
+	orderUUID, err := uuid.Parse(outTradeNo)
+	if err != nil {
+		log.Printf("Invalid order ID: %s", outTradeNo)
+		c.String(http.StatusBadRequest, "fail")
+		return
+	}
+
+	// 查找订单
+	var order models.Order
+	if err := h.db.Where("id = ?", orderUUID).First(&order).Error; err != nil {
+		log.Printf("Order not found: %s", outTradeNo)
+		c.String(http.StatusNotFound, "fail")
+		return
+	}
+
+	// 处理支付成功
+	if tradeStatus == "TRADE_SUCCESS" || tradeStatus == "1" {
+		// 检查订单状态，避免重复处理
+		if order.PaymentStatus == "paid" {
+			log.Printf("Order already completed: %s", outTradeNo)
+			c.String(http.StatusOK, "success")
+			return
+		}
+
+		// 更新订单状态
+		order.PaymentStatus = "paid"
+		order.PaymentMethod = "alipay"
+		if err := h.db.Save(&order).Error; err != nil {
+			log.Printf("Failed to update order: %v", err)
+			c.String(http.StatusInternalServerError, "fail")
+			return
+		}
+
+		// 获取用户的第一个GitHub账户
+		var githubAccount models.GitHubAccount
+		if err := h.db.Where("user_id = ?", order.UserID).First(&githubAccount).Error; err != nil {
+			log.Printf("Failed to find GitHub account for user: %v", err)
+			c.String(http.StatusInternalServerError, "fail")
+			return
+		}
+
+		// 计算维护到期时间（默认12个月）
+		maintenanceMonths := order.Plugin.DefaultMaintenanceMonths
+		if maintenanceMonths == 0 {
+			maintenanceMonths = 12
+		}
+
+		// 生成许可证
+		license := models.License{
+			UserID:           order.UserID,
+			PluginID:         order.PluginID,
+			OrderID:          order.ID,
+			GitHubAccountID:  githubAccount.ID,
+			LicenseType:      "permanent",
+			MaintenanceUntil: utils.CalculateMaintenanceUntil(maintenanceMonths),
+			Status:           "active",
+		}
+
+		if err := h.db.Create(&license).Error; err != nil {
+			log.Printf("Failed to create license: %v", err)
+			c.String(http.StatusInternalServerError, "fail")
+			return
+		}
+
+		log.Printf("Payment successful - Order: %s, TradeNo: %s", outTradeNo, tradeNo)
+		c.String(http.StatusOK, "success")
+		return
+	}
+
+	// 其他状态，记录日志
+	log.Printf("Payment status: %s, Order: %s, TradeNo: %s", tradeStatus, outTradeNo, tradeNo)
+	c.String(http.StatusOK, "success")
 }
 
 // LicenseHandler handles license-related requests
@@ -372,9 +534,9 @@ func (h *AdminHandler) CreatePlugin(c *gin.Context) {
 		Slug                     string   `json:"slug" binding:"required"`
 		Description              string   `json:"description"`
 		LongDescription          string   `json:"long_description"`
-		GitHubRepoID             int64    `json:"github_repo_id" binding:"required"`
-		GitHubRepoURL            string   `json:"github_repo_url" binding:"required"`
-		GitHubRepoName           string   `json:"github_repo_name" binding:"required"`
+		GitHubRepoID             int64    `json:"github_repo_id"`
+		GitHubRepoURL            string   `json:"github_repo_url"`
+		GitHubRepoName           string   `json:"github_repo_name"`
 		Price                    float64  `json:"price"`
 		Currency                 string   `json:"currency"`
 		DefaultMaintenanceMonths int      `json:"default_maintenance_months"`
@@ -390,6 +552,17 @@ func (h *AdminHandler) CreatePlugin(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
+	}
+
+	// Set default values for required GitHub fields if not provided
+	if req.GitHubRepoID == 0 {
+		req.GitHubRepoID = 0 // Use 0 as placeholder
+	}
+	if req.GitHubRepoURL == "" {
+		req.GitHubRepoURL = ""
+	}
+	if req.GitHubRepoName == "" {
+		req.GitHubRepoName = ""
 	}
 
 	plugin := models.Plugin{
@@ -626,7 +799,7 @@ func (h *AdminHandler) ListAllOrders(c *gin.Context) {
 	var orders []models.Order
 	var total int64
 
-	query := h.db.Model(&models.Order{}).Preload("User").Preload("Plugin")
+	query := h.db.Model(&models.Order{})
 
 	if search != "" {
 		query = query.Where("order_number ILIKE ?", "%"+search+"%")
@@ -643,9 +816,16 @@ func (h *AdminHandler) ListAllOrders(c *gin.Context) {
 
 	query.Count(&total)
 
-	if err := query.Offset((page - 1) * pageSize).Limit(pageSize).Order("created_at DESC").Find(&orders).Error; err != nil {
+	// 预加载关联数据
+	if err := query.Preload("User").Preload("Plugin").Offset((page - 1) * pageSize).Limit(pageSize).Order("created_at DESC").Find(&orders).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch orders"})
 		return
+	}
+
+	// 调试：检查是否正确加载了关联数据
+	if len(orders) > 0 {
+		log.Printf("[Admin Debug] First order: UserID=%s, PluginID=%s, User.Email=%s, Plugin.Name=%s", 
+			orders[0].UserID, orders[0].PluginID, orders[0].User.Email, orders[0].Plugin.Name)
 	}
 
 	totalPages := (total + int64(pageSize) - 1) / int64(pageSize)
@@ -671,6 +851,77 @@ func (h *AdminHandler) GetOrderByID(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"order": order})
+}
+
+// UpdateOrderPaymentStatus updates the payment status of an order (admin only)
+func (h *AdminHandler) UpdateOrderPaymentStatus(c *gin.Context) {
+	orderID := c.Param("id")
+	if orderID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Order ID is required"})
+		return
+	}
+
+	var req struct {
+		PaymentStatus string `json:"payment_status" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Validate payment status
+	validStatuses := map[string]bool{
+		"pending":  true,
+		"paid":     true,
+		"failed":   true,
+		"refunded": true,
+	}
+
+	if !validStatuses[req.PaymentStatus] {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid payment status"})
+		return
+	}
+
+	var order models.Order
+	if err := h.db.Where("id = ?", orderID).First(&order).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Order not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get order"})
+		return
+	}
+
+	updates := map[string]interface{}{
+		"payment_status": req.PaymentStatus,
+	}
+
+	// If setting to paid, update paid_at timestamp
+	if req.PaymentStatus == "paid" && order.PaidAt == nil {
+		now := time.Now()
+		updates["paid_at"] = &now
+	}
+
+	// If setting to refunded, update refunded_at timestamp
+	if req.PaymentStatus == "refunded" && order.RefundedAt == nil {
+		now := time.Now()
+		updates["refunded_at"] = &now
+	}
+
+	if err := h.db.Model(&order).Updates(updates).Error; err != nil {
+		log.Printf("Failed to update order payment status: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update order payment status"})
+		return
+	}
+
+	// Reload order with associations
+	if err := h.db.Preload("User").Preload("Plugin").Where("id = ?", orderID).First(&order).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to reload order"})
+		return
+	}
+
+	c.JSON(http.StatusOK, order)
 }
 
 func (h *AdminHandler) RefundOrder(c *gin.Context) {

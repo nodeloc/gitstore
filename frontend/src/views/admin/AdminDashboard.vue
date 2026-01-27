@@ -269,9 +269,43 @@
                     </td>
                     <td>{{ formatDate(order.created_at) }}</td>
                     <td>
-                      <button class="btn btn-ghost btn-xs text-warning"
-                              v-if="order.payment_status === 'paid'"
-                              @click="confirmRefundOrder(order)">退款</button>
+                      <div class="dropdown dropdown-end">
+                        <label tabindex="0" class="btn btn-ghost btn-xs">操作 ▼</label>
+                        <ul tabindex="0" class="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-52">
+                          <li v-if="order.payment_status === 'pending'">
+                            <a @click="updateOrderStatus(order, 'paid')">
+                              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                              </svg>
+                              设为已支付
+                            </a>
+                          </li>
+                          <li v-if="order.payment_status === 'pending'">
+                            <a @click="updateOrderStatus(order, 'failed')">
+                              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                              设为失败
+                            </a>
+                          </li>
+                          <li v-if="order.payment_status === 'paid' || order.payment_status === 'failed'">
+                            <a @click="updateOrderStatus(order, 'pending')">
+                              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                              设为待支付
+                            </a>
+                          </li>
+                          <li v-if="order.payment_status === 'paid'">
+                            <a @click="confirmRefundOrder(order)" class="text-warning">
+                              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                              </svg>
+                              退款
+                            </a>
+                          </li>
+                        </ul>
+                      </div>
                     </td>
                   </tr>
                 </tbody>
@@ -814,6 +848,25 @@ function confirmDeleteUser(u) {
 }
 
 // Order actions
+async function updateOrderStatus(order, newStatus) {
+  const statusTexts = {
+    'pending': '待支付',
+    'paid': '已支付',
+    'failed': '失败',
+    'refunded': '已退款'
+  }
+  
+  const confirm = window.confirm(`确定要将订单 "${order.order_number}" 的状态设为 ${statusTexts[newStatus]} 吗？`)
+  if (!confirm) return
+  
+  try {
+    await adminStore.updateOrderStatus(order.id, newStatus)
+    await loadOrders()
+  } catch (err) {
+    alert('更新订单状态失败: ' + (err.response?.data?.error || err.message))
+  }
+}
+
 function confirmRefundOrder(order) {
   confirmTitle.value = '确认退款'
   confirmMessage.value = `确定要退款订单 "${order.order_number}" ($${order.amount?.toFixed(2)}) 吗？相关授权将被撤销。`

@@ -45,11 +45,13 @@ type Config struct {
 	PayPalClientSecret string
 	PayPalMode         string
 
-	// Alipay
-	AlipayAppID      string
-	AlipayPrivateKey string
-	AlipayPublicKey  string
-	AlipayNotifyURL  string
+	// Alipay (易支付)
+	AlipayPID        string // 易支付商户ID
+	AlipayAPIURL     string // 易支付API地址
+	AlipayPrivateKey string // 商户私钥
+	AlipayPublicKey  string // 平台公钥
+	AlipayNotifyURL  string // 异步通知地址
+	AlipayAppID      string // 保留兼容（已废弃）
 
 	// Email
 	SMTPHost     string
@@ -108,10 +110,12 @@ func Load() *Config {
 		PayPalClientSecret: getEnv("PAYPAL_CLIENT_SECRET", ""),
 		PayPalMode:         getEnv("PAYPAL_MODE", "sandbox"),
 
+		AlipayPID:        getEnv("EPAY_PID", ""),
+		AlipayAPIURL:     getEnv("EPAY_API_URL", "https://p.ma3fu.com/api/pay/create"),
+		AlipayPrivateKey: getEnv("EPAY_PRIVATE_KEY", ""),
+		AlipayPublicKey:  getEnv("EPAY_PUBLIC_KEY", ""),
+		AlipayNotifyURL:  getEnv("EPAY_NOTIFY_URL", ""),
 		AlipayAppID:      getEnv("ALIPAY_APP_ID", ""),
-		AlipayPrivateKey: getEnv("ALIPAY_PRIVATE_KEY", ""),
-		AlipayPublicKey:  getEnv("ALIPAY_PUBLIC_KEY", ""),
-		AlipayNotifyURL:  getEnv("ALIPAY_NOTIFY_URL", ""),
 
 		SMTPHost:     getEnv("SMTP_HOST", ""),
 		SMTPPort:     smtpPort,

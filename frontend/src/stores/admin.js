@@ -174,6 +174,11 @@ export const useAdminStore = defineStore('admin', () => {
     return response.data.order
   }
 
+  async function updateOrderStatus(id, paymentStatus) {
+    const response = await api.put(`/admin/orders/${id}/status`, { payment_status: paymentStatus })
+    return response.data
+  }
+
   async function refundOrder(id) {
     const response = await api.post(`/admin/orders/${id}/refund`)
     return response.data
@@ -308,6 +313,7 @@ export const useAdminStore = defineStore('admin', () => {
     // Order Actions
     fetchOrders,
     getOrder,
+    updateOrderStatus,
     refundOrder,
 
     // License Actions

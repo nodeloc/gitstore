@@ -64,6 +64,18 @@ func AutoMigrate(db *gorm.DB) error {
 		return fmt.Errorf("failed to auto migrate: %w", err)
 	}
 
+	// Make GitHub fields nullable in plugins table
+	// This is needed because GORM's AutoMigrate sets them as NOT NULL by default
+	if err := db.Exec("ALTER TABLE plugins ALTER COLUMN github_repo_id DROP NOT NULL").Error; err != nil {
+		log.Printf("Warning: failed to make github_repo_id nullable: %v", err)
+	}
+	if err := db.Exec("ALTER TABLE plugins ALTER COLUMN github_repo_url DROP NOT NULL").Error; err != nil {
+		log.Printf("Warning: failed to make github_repo_url nullable: %v", err)
+	}
+	if err := db.Exec("ALTER TABLE plugins ALTER COLUMN github_repo_name DROP NOT NULL").Error; err != nil {
+		log.Printf("Warning: failed to make github_repo_name nullable: %v", err)
+	}
+
 	log.Println("Database migration completed")
 	return nil
 }

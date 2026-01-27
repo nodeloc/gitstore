@@ -159,6 +159,7 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, cfg *config.Config) {
 		{
 			adminOrders.GET("", adminHandler.ListAllOrders)
 			adminOrders.GET("/:id", adminHandler.GetOrderByID)
+			adminOrders.PUT("/:id/status", adminHandler.UpdateOrderPaymentStatus)
 			adminOrders.POST("/:id/refund", adminHandler.RefundOrder)
 		}
 

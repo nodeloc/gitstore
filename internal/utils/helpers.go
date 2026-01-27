@@ -64,3 +64,19 @@ func TruncateString(s string, maxLength int) string {
 	}
 	return s[:maxLength] + "..."
 }
+
+// GenerateLicenseKey generates a random license key
+func GenerateLicenseKey() string {
+	randomBytes := make([]byte, 16)
+	rand.Read(randomBytes)
+	key := hex.EncodeToString(randomBytes)
+	// Format as XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX
+	formatted := ""
+	for i := 0; i < len(key); i += 4 {
+		if i > 0 {
+			formatted += "-"
+		}
+		formatted += strings.ToUpper(key[i : i+4])
+	}
+	return formatted
+}

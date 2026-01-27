@@ -2,52 +2,115 @@ package services
 
 import (
 	"crypto"
+	"crypto/md5"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
+	"encoding/hex"
+	"encoding/json"
 	"encoding/pem"
 	"fmt"
+	"io"
+	"log"
+	"net/http"
 	"net/url"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/nodeloc/git-store/internal/config"
 )
 
+// EpayService 易支付服务
 type AlipayService struct {
 	config     *config.Config
-	privateKey *rsa.PrivateKey
-	publicKey  *rsa.PublicKey
-	gatewayURL string
+	pid        string          // 商户ID
+	key        string          // MD5密钥（用于MD5签名）
+	privateKey *rsa.PrivateKey // 商户私钥（用于RSA签名）
+	publicKey  *rsa.PublicKey  // 平台公钥（用于RSA验签）
+	signType   string          // 签名类型：MD5或RSA
+	apiURL     string          // API地址
+	httpClient *http.Client    // HTTP客户端
 }
 
+// EpayCreateRequest 易支付统一下单请求
 type AlipayTradeRequest struct {
 	OutTradeNo  string  // 商户订单号
 	TotalAmount float64 // 订单总金额
-	Subject     string  // 订单标题
-	Body        string  // 订单描述
-	ProductCode string  // 产品码
+	Subject     string  // 商品名称
+	Body        string  // 订单描述（可选）
+	NotifyURL   string  // 异步通知地址
+	ReturnURL   string  // 跳转通知地址
+	ClientIP    string  // 用户IP地址
+}
+
+// EpayCreateResponse 易支付统一下单响应
+type EpayCreateResponse struct {
+	Code      int    `json:"code"`      // 返回状态码，1为成功，其它值为失败
+	Msg       string `json:"msg"`       // 错误信息
+	TradeNo   string `json:"trade_no"`  // 易支付订单号
+	PayURL    string `json:"payurl"`    // 支付跳转URL
+	QRCode    string `json:"qrcode"`    // 二维码链接
+	URLScheme string `json:"urlscheme"` // 小程序跳转URL
+	Sign      string `json:"sign"`      // 签名字符串
+	SignType  string `json:"sign_type"` // 签名类型
+
+	// 兼容旧字段（已废弃）
+	PayType   string `json:"pay_type"`
+	PayInfo   string `json:"pay_info"`
+	Timestamp string `json:"timestamp"`
 }
 
 func NewAlipayService(cfg *config.Config) (*AlipayService, error) {
-	privateKey, err := parsePrivateKey(cfg.AlipayPrivateKey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse alipay private key: %w", err)
+	// 默认使用易支付API地址
+	apiURL := cfg.AlipayAPIURL
+	if apiURL == "" {
+		apiURL = "https://p.ma3fu.com/mapi.php"
 	}
 
-	publicKey, err := parsePublicKey(cfg.AlipayPublicKey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse alipay public key: %w", err)
+	// 创建跳过TLS证书验证的HTTP客户端（用于测试环境）
+	httpClient := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
+		Timeout: 30 * time.Second,
 	}
 
-	return &AlipayService{
+	service := &AlipayService{
 		config:     cfg,
-		privateKey: privateKey,
-		publicKey:  publicKey,
-		gatewayURL: "https://openapi.alipay.com/gateway.do",
-	}, nil
+		pid:        cfg.AlipayPID,
+		apiURL:     apiURL,
+		httpClient: httpClient,
+	}
+
+	// 检测密钥类型：如果密钥很短（<100字符），使用MD5签名；否则使用RSA签名
+	privateKeyStr := strings.TrimSpace(cfg.AlipayPrivateKey)
+
+	if len(privateKeyStr) < 100 {
+		// MD5签名方式
+		service.signType = "MD5"
+		service.key = privateKeyStr
+	} else {
+		// RSA签名方式
+		service.signType = "RSA"
+
+		privateKey, err := parsePrivateKey(privateKeyStr)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse epay private key: %w", err)
+		}
+		service.privateKey = privateKey
+
+		publicKey, err := parsePublicKey(cfg.AlipayPublicKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse epay public key: %w", err)
+		}
+		service.publicKey = publicKey
+	}
+
+	return service, nil
 }
 
 func parsePrivateKey(privateKeyStr string) (*rsa.PrivateKey, error) {
@@ -99,6 +162,18 @@ func parsePublicKey(publicKeyStr string) (*rsa.PublicKey, error) {
 }
 
 func (s *AlipayService) sign(content string) (string, error) {
+	if s.signType == "MD5" {
+		// MD5签名：待签名字符串 + 密钥，结果小写
+		signString := content + s.key
+		log.Printf("[Epay Debug] Final sign string: %s", signString)
+		h := md5.New()
+		h.Write([]byte(signString))
+		result := hex.EncodeToString(h.Sum(nil)) // 小写
+		log.Printf("[Epay Debug] MD5 result: %s", result)
+		return result, nil
+	}
+
+	// RSA签名
 	hashed := crypto.SHA256.New()
 	hashed.Write([]byte(content))
 
@@ -111,6 +186,19 @@ func (s *AlipayService) sign(content string) (string, error) {
 }
 
 func (s *AlipayService) verify(content, sign string) error {
+	if s.signType == "MD5" {
+		// MD5验签
+		expectedSign, err := s.sign(content)
+		if err != nil {
+			return err
+		}
+		if strings.ToUpper(sign) != expectedSign {
+			return fmt.Errorf("signature verification failed")
+		}
+		return nil
+	}
+
+	// RSA验签
 	signBytes, err := base64.StdEncoding.DecodeString(sign)
 	if err != nil {
 		return err
@@ -122,39 +210,12 @@ func (s *AlipayService) verify(content, sign string) error {
 	return rsa.VerifyPKCS1v15(s.publicKey, crypto.SHA256, hashed.Sum(nil), signBytes)
 }
 
-func (s *AlipayService) buildRequestParams(bizContent map[string]interface{}, method string) (url.Values, error) {
-	params := url.Values{}
-	params.Set("app_id", s.config.AlipayAppID)
-	params.Set("method", method)
-	params.Set("format", "JSON")
-	params.Set("charset", "utf-8")
-	params.Set("sign_type", "RSA2")
-	params.Set("timestamp", time.Now().Format("2006-01-02 15:04:05"))
-	params.Set("version", "1.0")
-	params.Set("notify_url", s.config.AlipayNotifyURL)
-
-	// Convert bizContent to JSON string
-	bizContentJSON, err := jsonMarshal(bizContent)
-	if err != nil {
-		return nil, err
-	}
-	params.Set("biz_content", string(bizContentJSON))
-
-	// Generate signature
-	signContent := s.buildSignContent(params)
-	sign, err := s.sign(signContent)
-	if err != nil {
-		return nil, err
-	}
-	params.Set("sign", sign)
-
-	return params, nil
-}
-
-func (s *AlipayService) buildSignContent(params url.Values) string {
+// buildSignContent 构建待签名字符串
+// 按照ASCII码递增排序，剔除sign和sign_type字段
+func (s *AlipayService) buildSignContent(params map[string]string) string {
 	var keys []string
 	for key := range params {
-		if key != "sign" {
+		if key != "sign" && key != "sign_type" && params[key] != "" {
 			keys = append(keys, key)
 		}
 	}
@@ -162,64 +223,127 @@ func (s *AlipayService) buildSignContent(params url.Values) string {
 
 	var signParts []string
 	for _, key := range keys {
-		value := params.Get(key)
+		value := params[key]
 		if value != "" {
+			// 参数值不进行URL编码，直接拼接
 			signParts = append(signParts, fmt.Sprintf("%s=%s", key, value))
 		}
 	}
 
-	return strings.Join(signParts, "&")
+	content := strings.Join(signParts, "&")
+	log.Printf("[Epay Debug] Sign content before key: %s", content)
+	log.Printf("[Epay Debug] Key: %s", s.key)
+	return content
 }
 
-// TradePagePay creates a web payment request (电脑网站支付)
-func (s *AlipayService) TradePagePay(req *AlipayTradeRequest) (string, error) {
-	bizContent := map[string]interface{}{
-		"out_trade_no": req.OutTradeNo,
-		"total_amount": fmt.Sprintf("%.2f", req.TotalAmount),
-		"subject":      req.Subject,
-		"body":         req.Body,
-		"product_code": "FAST_INSTANT_TRADE_PAY",
+// CreatePayment 创建易支付订单
+func (s *AlipayService) CreatePayment(req *AlipayTradeRequest) (*EpayCreateResponse, error) {
+	// 构建请求参数
+	params := map[string]string{
+		"pid":          s.pid,
+		"type":         "alipay",                                 // 支付方式：支付宝
+		"out_trade_no": req.OutTradeNo,                           // 商户订单号
+		"notify_url":   req.NotifyURL,                            // 异步通知地址
+		"return_url":   req.ReturnURL,                            // 跳转通知地址
+		"name":         req.Subject,                              // 商品名称
+		"money":        fmt.Sprintf("%.2f", req.TotalAmount),     // 商品金额
+		"clientip":     req.ClientIP,                             // 用户IP
+		"device":       "pc",                                     // 设备类型：pc/mobile/wap
+		"param":        req.Body,                                 // 业务扩展参数
+		"timestamp":    strconv.FormatInt(time.Now().Unix(), 10), // 当前时间戳
 	}
 
-	params, err := s.buildRequestParams(bizContent, "alipay.trade.page.pay")
+	// 生成签名
+	signContent := s.buildSignContent(params)
+	log.Printf("[Epay Debug] Sign content: %s", signContent)
+	sign, err := s.sign(signContent)
 	if err != nil {
-		return "", err
+		return nil, fmt.Errorf("failed to generate signature: %w", err)
+	}
+	log.Printf("[Epay Debug] Generated sign: %s", sign)
+	params["sign"] = sign
+
+	// 构建POST请求
+	formData := url.Values{}
+	for k, v := range params {
+		formData.Set(k, v)
 	}
 
-	// Return the complete payment URL
-	return fmt.Sprintf("%s?%s", s.gatewayURL, params.Encode()), nil
-}
-
-// TradeWapPay creates a mobile payment request (手机网站支付)
-func (s *AlipayService) TradeWapPay(req *AlipayTradeRequest) (string, error) {
-	bizContent := map[string]interface{}{
-		"out_trade_no": req.OutTradeNo,
-		"total_amount": fmt.Sprintf("%.2f", req.TotalAmount),
-		"subject":      req.Subject,
-		"body":         req.Body,
-		"product_code": "QUICK_WAP_WAY",
-	}
-
-	params, err := s.buildRequestParams(bizContent, "alipay.trade.wap.pay")
+	resp, err := s.httpClient.PostForm(s.apiURL, formData)
 	if err != nil {
-		return "", err
+		return nil, fmt.Errorf("failed to send request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
 
-	return fmt.Sprintf("%s?%s", s.gatewayURL, params.Encode()), nil
+	log.Printf("[Epay Debug] Response body: %s", string(body))
+
+	// 解析响应
+	var result EpayCreateResponse
+	if err := json.Unmarshal(body, &result); err != nil {
+		return nil, fmt.Errorf("failed to parse response: %w, body: %s", err, string(body))
+	}
+
+	log.Printf("[Epay Debug] Response code: %d, msg: %s", result.Code, result.Msg)
+
+	// code=1 表示成功
+	if result.Code != 1 {
+		return nil, fmt.Errorf("payment creation failed: %s", result.Msg)
+	}
+
+	return &result, nil
 }
 
 // VerifyNotify verifies the Alipay callback notification
-func (s *AlipayService) VerifyNotify(params url.Values) error {
-	sign := params.Get("sign")
-	params.Del("sign")
-	params.Del("sign_type")
+func (s *AlipayService) VerifyNotify(params map[string]string) error {
+	sign := params["sign"]
+	if sign == "" {
+		return fmt.Errorf("missing sign parameter")
+	}
 
 	signContent := s.buildSignContent(params)
 	return s.verify(signContent, sign)
 }
 
-// Helper function to marshal JSON
-func jsonMarshal(v interface{}) ([]byte, error) {
-	// Use encoding/json
-	return []byte(fmt.Sprintf("%v", v)), nil
+// TradePagePay 创建网页支付（兼容旧接口）
+func (s *AlipayService) TradePagePay(req *AlipayTradeRequest) (string, error) {
+	if req.NotifyURL == "" {
+		req.NotifyURL = s.config.AlipayNotifyURL
+	}
+	if req.ReturnURL == "" {
+		req.ReturnURL = s.config.AppURL + "/payment/success"
+	}
+	if req.ClientIP == "" {
+		req.ClientIP = "127.0.0.1"
+	}
+
+	result, err := s.CreatePayment(req)
+	if err != nil {
+		return "", err
+	}
+
+	// 根据pay_type返回不同的内容
+	switch result.PayType {
+	case "jump":
+		// 直接跳转URL
+		return result.PayInfo, nil
+	case "html":
+		// HTML代码，需要渲染
+		return result.PayInfo, nil
+	case "qrcode":
+		// 二维码链接
+		return result.PayInfo, nil
+	default:
+		return result.PayInfo, nil
+	}
+}
+
+// TradeWapPay 创建移动支付（兼容旧接口）
+func (s *AlipayService) TradeWapPay(req *AlipayTradeRequest) (string, error) {
+	// 移动支付和网页支付使用相同的接口
+	return s.TradePagePay(req)
 }

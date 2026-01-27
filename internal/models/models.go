@@ -46,9 +46,9 @@ type Plugin struct {
 	Slug                     string    `gorm:"unique;not null" json:"slug"`
 	Description              string    `json:"description"`
 	LongDescription          string    `json:"long_description"`
-	GitHubRepoID             int64     `gorm:"column:github_repo_id;not null" json:"github_repo_id"`
-	GitHubRepoURL            string    `gorm:"column:github_repo_url;not null" json:"github_repo_url"`
-	GitHubRepoName           string    `gorm:"column:github_repo_name;not null" json:"github_repo_name"`
+	GitHubRepoID             int64     `gorm:"column:github_repo_id" json:"github_repo_id"`
+	GitHubRepoURL            string    `gorm:"column:github_repo_url" json:"github_repo_url"`
+	GitHubRepoName           string    `gorm:"column:github_repo_name" json:"github_repo_name"`
 	Price                    float64   `gorm:"type:decimal(10,2);default:0.00" json:"price"`
 	Currency                 string    `gorm:"default:'USD'" json:"currency"`
 	DefaultMaintenanceMonths int       `gorm:"default:12" json:"default_maintenance_months"`
@@ -85,8 +85,8 @@ type Order struct {
 	CreatedAt            time.Time  `json:"created_at"`
 	UpdatedAt            time.Time  `json:"updated_at"`
 
-	User   User   `gorm:"foreignKey:UserID" json:"user,omitempty"`
-	Plugin Plugin `gorm:"foreignKey:PluginID" json:"plugin,omitempty"`
+	User   User   `gorm:"foreignKey:UserID" json:"user"`
+	Plugin Plugin `gorm:"foreignKey:PluginID" json:"plugin"`
 }
 
 type License struct {
