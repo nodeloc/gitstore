@@ -1,8 +1,10 @@
 package handlers
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"strconv"
@@ -14,6 +16,7 @@ import (
 	"github.com/nodeloc/git-store/internal/models"
 	"github.com/nodeloc/git-store/internal/services"
 	"github.com/nodeloc/git-store/internal/utils"
+	"github.com/stripe/stripe-go/v76"
 	"gorm.io/gorm"
 )
 
@@ -146,6 +149,7 @@ type PaymentHandler struct {
 	db            *gorm.DB
 	config        *config.Config
 	alipayService *services.AlipayService
+	stripeService *services.StripeService
 }
 
 func NewPaymentHandler(db *gorm.DB, cfg *config.Config) *PaymentHandler {
@@ -155,15 +159,83 @@ func NewPaymentHandler(db *gorm.DB, cfg *config.Config) *PaymentHandler {
 		log.Printf("Warning: Failed to initialize Alipay service: %v", err)
 	}
 
+	// 初始化Stripe服务
+	stripeService := services.NewStripeService(cfg)
+
 	return &PaymentHandler{
 		db:            db,
 		config:        cfg,
 		alipayService: alipayService,
+		stripeService: stripeService,
 	}
 }
 
 func (h *PaymentHandler) CreateStripePaymentIntent(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"message": "Create Stripe payment intent - to be implemented"})
+	var req struct {
+		OrderID string `json:"order_id" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	orderUUID, err := uuid.Parse(req.OrderID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid order ID"})
+		return
+	}
+
+	// Verify order exists and belongs to user
+	userID, _ := c.Get("user_id")
+	var order models.Order
+	if err := h.db.Preload("Plugin").Where("id = ? AND user_id = ?", orderUUID, userID).First(&order).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Order not found"})
+		return
+	}
+
+	// Check if Stripe service is available
+	if h.stripeService == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"error": "Stripe service is not configured",
+		})
+		return
+	}
+
+	// Create Stripe payment intent
+	amountCents := int64(order.Amount * 100) // Convert to cents
+	paymentReq := &services.PaymentIntentRequest{
+		Amount:      amountCents,
+		Currency:    "usd",
+		Description: fmt.Sprintf("%s - License", order.Plugin.Name),
+		Metadata: map[string]string{
+			"order_id":  order.ID.String(),
+			"user_id":   order.UserID.String(),
+			"plugin_id": order.PluginID.String(),
+		},
+	}
+
+	paymentIntent, err := h.stripeService.CreatePaymentIntent(paymentReq)
+	if err != nil {
+		log.Printf("Failed to create Stripe payment intent: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create payment"})
+		return
+	}
+
+	// Update order with payment intent ID
+	order.PaymentIntentID = paymentIntent.ID
+	if err := h.db.Save(&order).Error; err != nil {
+		log.Printf("Failed to update order: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update order"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"client_secret": paymentIntent.ClientSecret,
+		"payment_intent_id": paymentIntent.ID,
+		"order_id": order.ID,
+		"amount": order.Amount,
+	})
 }
 
 func (h *PaymentHandler) CreatePayPalOrder(c *gin.Context) {
@@ -237,15 +309,21 @@ func (h *PaymentHandler) CreateAlipayPayment(c *gin.Context) {
 		"amount":   order.Amount,
 	}
 
-	// 返回支付URL、二维码或小程序跳转链接
-	if result.PayURL != "" {
-		response["pay_url"] = result.PayURL
-		response["pay_type"] = "redirect"
+	// 优先使用 PayInfo 字段（易支付实际返回的字段）
+	// 根据 pay_type 判断支付方式
+	payURL := result.PayInfo
+	if payURL == "" {
+		payURL = result.PayURL // fallback到新版字段
+	}
+
+	if payURL != "" {
+		response["pay_url"] = payURL
+		response["pay_type"] = result.PayType
 	} else if result.QRCode != "" {
-		response["qrcode"] = result.QRCode
+		response["pay_url"] = result.QRCode
 		response["pay_type"] = "qrcode"
 	} else if result.URLScheme != "" {
-		response["url_scheme"] = result.URLScheme
+		response["pay_url"] = result.URLScheme
 		response["pay_type"] = "urlscheme"
 	}
 
@@ -253,7 +331,148 @@ func (h *PaymentHandler) CreateAlipayPayment(c *gin.Context) {
 }
 
 func (h *PaymentHandler) StripeWebhook(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"message": "Stripe webhook - to be implemented"})
+	// Check if Stripe service is available
+	if h.stripeService == nil {
+		log.Printf("Stripe service is not configured")
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Stripe service not configured"})
+		return
+	}
+
+	// Read request body
+	payload, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		log.Printf("Failed to read request body: %v", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
+		return
+	}
+
+	// Get Stripe signature header
+	signature := c.GetHeader("Stripe-Signature")
+	if signature == "" {
+		log.Printf("Missing Stripe-Signature header")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing signature"})
+		return
+	}
+
+	// Verify webhook signature
+	event, err := h.stripeService.VerifyWebhookSignature(payload, signature)
+	if err != nil {
+		log.Printf("Failed to verify webhook signature: %v", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid signature"})
+		return
+	}
+
+	// Handle the event
+	switch event.Type {
+	case "payment_intent.succeeded":
+		var paymentIntent stripe.PaymentIntent
+		if err := json.Unmarshal(event.Data.Raw, &paymentIntent); err != nil {
+			log.Printf("Failed to parse payment intent: %v", err)
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid event data"})
+			return
+		}
+
+		// Get order ID from metadata
+		orderIDStr, ok := paymentIntent.Metadata["order_id"]
+		if !ok {
+			log.Printf("Order ID not found in payment intent metadata")
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Order ID not found"})
+			return
+		}
+
+		orderUUID, err := uuid.Parse(orderIDStr)
+		if err != nil {
+			log.Printf("Invalid order ID: %s", orderIDStr)
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid order ID"})
+			return
+		}
+
+		// Find order
+		var order models.Order
+		if err := h.db.Preload("Plugin").Where("id = ?", orderUUID).First(&order).Error; err != nil {
+			log.Printf("Order not found: %s", orderIDStr)
+			c.JSON(http.StatusNotFound, gin.H{"error": "Order not found"})
+			return
+		}
+
+		// Check if already processed
+		if order.PaymentStatus == "paid" {
+			log.Printf("Order already completed: %s", orderIDStr)
+			c.JSON(http.StatusOK, gin.H{"message": "Already processed"})
+			return
+		}
+
+		// Update order status
+		order.PaymentStatus = "paid"
+		order.PaymentMethod = "stripe"
+		order.PaymentTransactionID = paymentIntent.ID
+		if err := h.db.Save(&order).Error; err != nil {
+			log.Printf("Failed to update order: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update order"})
+			return
+		}
+
+		// Get user's first GitHub account
+		var githubAccount models.GitHubAccount
+		if err := h.db.Where("user_id = ?", order.UserID).First(&githubAccount).Error; err != nil {
+			log.Printf("Failed to find GitHub account for user: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "GitHub account not found"})
+			return
+		}
+
+		// Calculate maintenance expiry
+		maintenanceMonths := order.Plugin.DefaultMaintenanceMonths
+		if maintenanceMonths == 0 {
+			maintenanceMonths = 12
+		}
+		maintenanceUntil := time.Now().AddDate(0, maintenanceMonths, 0)
+
+		// Create license
+		license := models.License{
+			OrderID:          order.ID,
+			UserID:           order.UserID,
+			PluginID:         order.PluginID,
+			GitHubAccountID:  githubAccount.ID,
+			LicenseType:      "standard",
+			Status:           "active",
+			MaintenanceUntil: maintenanceUntil,
+		}
+
+		if err := h.db.Create(&license).Error; err != nil {
+			log.Printf("Failed to create license: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create license"})
+			return
+		}
+
+		log.Printf("Successfully processed Stripe payment for order: %s", orderIDStr)
+
+	case "payment_intent.payment_failed":
+		var paymentIntent stripe.PaymentIntent
+		if err := json.Unmarshal(event.Data.Raw, &paymentIntent); err != nil {
+			log.Printf("Failed to parse payment intent: %v", err)
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid event data"})
+			return
+		}
+
+		orderIDStr, ok := paymentIntent.Metadata["order_id"]
+		if ok {
+			orderUUID, err := uuid.Parse(orderIDStr)
+			if err == nil {
+				var order models.Order
+				if err := h.db.Where("id = ?", orderUUID).First(&order).Error; err == nil {
+					order.PaymentStatus = "failed"
+					h.db.Save(&order)
+				}
+			}
+		}
+
+		log.Printf("Stripe payment failed for order: %s", orderIDStr)
+
+	default:
+		log.Printf("Unhandled Stripe event type: %s", event.Type)
+	}
+
+	c.JSON(http.StatusOK, gin.H{"received": true})
 }
 
 func (h *PaymentHandler) PayPalWebhook(c *gin.Context) {

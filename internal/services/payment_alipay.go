@@ -49,18 +49,18 @@ type AlipayTradeRequest struct {
 
 // EpayCreateResponse 易支付统一下单响应
 type EpayCreateResponse struct {
-	Code      int    `json:"code"`      // 返回状态码，1为成功，其它值为失败
+	Code      int    `json:"code"`      // 返回状态码，0为成功，其它值为失败
 	Msg       string `json:"msg"`       // 错误信息
 	TradeNo   string `json:"trade_no"`  // 易支付订单号
-	PayURL    string `json:"payurl"`    // 支付跳转URL
+	PayURL    string `json:"payurl"`    // 支付跳转URL（新版字段）
 	QRCode    string `json:"qrcode"`    // 二维码链接
 	URLScheme string `json:"urlscheme"` // 小程序跳转URL
 	Sign      string `json:"sign"`      // 签名字符串
 	SignType  string `json:"sign_type"` // 签名类型
 
-	// 兼容旧字段（已废弃）
-	PayType   string `json:"pay_type"`
-	PayInfo   string `json:"pay_info"`
+	// 兼容旧字段
+	PayType   string `json:"pay_type"`   // 支付类型：jump/html/qrcode
+	PayInfo   string `json:"pay_info"`   // 支付信息（跳转URL、HTML代码或二维码链接）
 	Timestamp string `json:"timestamp"`
 }
 
@@ -290,8 +290,8 @@ func (s *AlipayService) CreatePayment(req *AlipayTradeRequest) (*EpayCreateRespo
 
 	log.Printf("[Epay Debug] Response code: %d, msg: %s", result.Code, result.Msg)
 
-	// code=1 表示成功
-	if result.Code != 1 {
+	// code=0 表示成功（易支付标准返回）
+	if result.Code != 0 {
 		return nil, fmt.Errorf("payment creation failed: %s", result.Msg)
 	}
 

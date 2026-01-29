@@ -147,6 +147,16 @@
     "cancel": "取消",
     "payNow": "立即支付"
   },
+  "purchase": {
+    "title": "完成购买",
+    "total": "总计",
+    "selectPayment": "选择支付方式",
+    "continue": "继续支付",
+    "processing": "处理中...",
+    "enterCard": "输入卡片信息",
+    "back": "返回",
+    "pay": "支付"
+  },
   "admin": {
     "title": "管理后台",
     "plugins": "插件管理",

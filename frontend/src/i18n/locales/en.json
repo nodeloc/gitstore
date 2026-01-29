@@ -147,6 +147,16 @@
     "cancel": "Cancel",
     "payNow": "Pay Now"
   },
+  "purchase": {
+    "title": "Complete Purchase",
+    "total": "Total",
+    "selectPayment": "Select Payment Method",
+    "continue": "Continue to Payment",
+    "processing": "Processing...",
+    "enterCard": "Enter Card Details",
+    "back": "Back",
+    "pay": "Pay"
+  },
   "admin": {
     "title": "Admin Dashboard",
     "plugins": "Plugins",
