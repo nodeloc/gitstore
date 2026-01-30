@@ -231,10 +231,10 @@ func (h *PaymentHandler) CreateStripePaymentIntent(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"client_secret": paymentIntent.ClientSecret,
+		"client_secret":     paymentIntent.ClientSecret,
 		"payment_intent_id": paymentIntent.ID,
-		"order_id": order.ID,
-		"amount": order.Amount,
+		"order_id":          order.ID,
+		"amount":            order.Amount,
 	})
 }
 
@@ -1043,7 +1043,7 @@ func (h *AdminHandler) ListAllOrders(c *gin.Context) {
 
 	// 调试：检查是否正确加载了关联数据
 	if len(orders) > 0 {
-		log.Printf("[Admin Debug] First order: UserID=%s, PluginID=%s, User.Email=%s, Plugin.Name=%s", 
+		log.Printf("[Admin Debug] First order: UserID=%s, PluginID=%s, User.Email=%s, Plugin.Name=%s",
 			orders[0].UserID, orders[0].PluginID, orders[0].User.Email, orders[0].Plugin.Name)
 	}
 

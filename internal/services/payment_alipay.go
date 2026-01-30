@@ -59,8 +59,8 @@ type EpayCreateResponse struct {
 	SignType  string `json:"sign_type"` // 签名类型
 
 	// 兼容旧字段
-	PayType   string `json:"pay_type"`   // 支付类型：jump/html/qrcode
-	PayInfo   string `json:"pay_info"`   // 支付信息（跳转URL、HTML代码或二维码链接）
+	PayType   string `json:"pay_type"` // 支付类型：jump/html/qrcode
+	PayInfo   string `json:"pay_info"` // 支付信息（跳转URL、HTML代码或二维码链接）
 	Timestamp string `json:"timestamp"`
 }
 
