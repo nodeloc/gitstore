@@ -25,11 +25,8 @@ type Config struct {
 	GitHubClientSecret string
 	GitHubRedirectURL  string
 
-	// GitHub App
-	GitHubAppID             string
-	GitHubAppPrivateKeyPath string
-	GitHubAppInstallationID string
-	GitHubOrgName           string
+	// GitHub Personal Access Token
+	GitHubAdminToken string // Personal Access Token for managing collaborators
 
 	// JWT
 	JWTSecret      string
@@ -94,10 +91,7 @@ func Load() *Config {
 		GitHubClientSecret: getEnv("GITHUB_CLIENT_SECRET", ""),
 		GitHubRedirectURL:  getEnv("GITHUB_REDIRECT_URL", ""),
 
-		GitHubAppID:             getEnv("GITHUB_APP_ID", ""),
-		GitHubAppPrivateKeyPath: getEnv("GITHUB_APP_PRIVATE_KEY_PATH", ""),
-		GitHubAppInstallationID: getEnv("GITHUB_APP_INSTALLATION_ID", ""),
-		GitHubOrgName:           getEnv("GITHUB_ORG_NAME", ""),
+		GitHubAdminToken: getEnv("GITHUB_ADMIN_TOKEN", ""),
 
 		JWTSecret:      getEnv("JWT_SECRET", ""),
 		JWTExpiryHours: jwtExpiryHours,

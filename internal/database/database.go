@@ -55,6 +55,7 @@ func AutoMigrate(db *gorm.DB) error {
 		&models.Order{},
 		&models.License{},
 		&models.LicenseHistory{},
+		&models.Category{},
 		&models.Tutorial{},
 		&models.EmailNotification{},
 		&models.Statistic{},

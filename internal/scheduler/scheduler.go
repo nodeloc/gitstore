@@ -3,35 +3,41 @@ package scheduler
 import (
 	"context"
 	"log"
+	"strings"
 	"time"
 
-	"github.com/robfig/cron/v3"
 	"github.com/nodeloc/git-store/internal/config"
 	"github.com/nodeloc/git-store/internal/models"
 	"github.com/nodeloc/git-store/internal/services"
+	"github.com/robfig/cron/v3"
 	"gorm.io/gorm"
 )
 
 type Scheduler struct {
-	db             *gorm.DB
-	config         *config.Config
-	githubAppSvc   *services.GitHubAppService
-	emailSvc       *services.EmailService
+	db        *gorm.DB
+	config    *config.Config
+	githubSvc *services.GitHubService
+	emailSvc  *services.EmailService
+}
+
+// Helper function to split "owner/repo" format
+func splitRepoName(repoName string) []string {
+	return strings.Split(repoName, "/")
 }
 
 func SetupScheduler(c *cron.Cron, db *gorm.DB, cfg *config.Config) {
 	scheduler := &Scheduler{
-		db:     db,
-		config: cfg,
+		db:       db,
+		config:   cfg,
 		emailSvc: services.NewEmailService(cfg, db),
 	}
 
-	// Initialize GitHub App Service
-	githubAppSvc, err := services.NewGitHubAppService(cfg)
-	if err != nil {
-		log.Printf("Warning: GitHub App Service not initialized: %v", err)
+	// Initialize GitHub Service
+	if cfg.GitHubAdminToken != "" {
+		scheduler.githubSvc = services.NewGitHubService(cfg)
+		log.Println("Scheduler: GitHub Service initialized")
 	} else {
-		scheduler.githubAppSvc = githubAppSvc
+		log.Println("Scheduler: GitHub Admin Token not configured, some features may not work")
 	}
 
 	// Schedule maintenance expiry check (default: daily at 2 AM)
@@ -108,30 +114,36 @@ func (s *Scheduler) processExpiredLicense(ctx context.Context, license *models.L
 	log.Printf("Processing expired license: %s (Plugin: %s, User: %s)",
 		license.ID, license.Plugin.Name, license.User.Email)
 
-	// 1. Revoke GitHub repository access
-	if s.githubAppSvc != nil && license.GitHubAccount.InstallationID != nil {
-		err := s.githubAppSvc.RevokeRepositoryAccess(
-			ctx,
-			*license.GitHubAccount.InstallationID,
-			license.Plugin.GitHubRepoID,
-		)
-		if err != nil {
-			log.Printf("Failed to revoke GitHub access: %v", err)
-			// Continue even if revocation fails
-		} else {
-			log.Printf("Successfully revoked GitHub access for license %s", license.ID)
+	// 1. Remove GitHub repository collaborator access
+	if s.githubSvc != nil && license.Plugin.GitHubRepoName != "" && license.GitHubAccount.Login != "" {
+		// Parse owner/repo
+		repoParts := splitRepoName(license.Plugin.GitHubRepoName)
+		if len(repoParts) == 2 {
+			owner := repoParts[0]
+			repo := repoParts[1]
+			username := license.GitHubAccount.Login
 
-			// Log the action
-			history := models.LicenseHistory{
-				LicenseID:  license.ID,
-				Action:     "github_access_revoked",
-				OccurredAt: time.Now(),
+			log.Printf("[License Expiry] Removing %s from %s/%s", username, owner, repo)
+
+			err := s.githubSvc.RemoveRepositoryCollaborator(ctx, owner, repo, username)
+			if err != nil {
+				log.Printf("Failed to remove collaborator: %v", err)
+				// Continue even if removal fails
+			} else {
+				log.Printf("Successfully removed %s from %s/%s", username, owner, repo)
+
+				// Log the action
+				history := models.LicenseHistory{
+					LicenseID:  license.ID,
+					Action:     "github_access_revoked",
+					OccurredAt: time.Now(),
+				}
+				s.db.Create(&history)
 			}
-			s.db.Create(&history)
 		}
 	}
 
-	// 2. Update license status
+	// 2. Update license status to expired
 	license.Status = "expired"
 	if err := s.db.Save(license).Error; err != nil {
 		return err

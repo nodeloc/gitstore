@@ -81,6 +81,11 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem('user')
   }
 
+  function setToken(newToken) {
+    token.value = newToken
+    localStorage.setItem('token', newToken)
+  }
+
   return {
     user,
     token,
@@ -91,6 +96,7 @@ export const useAuthStore = defineStore('auth', () => {
     login,
     handleCallback,
     fetchUser,
-    logout
+    logout,
+    setToken
   }
 })

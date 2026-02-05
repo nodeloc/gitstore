@@ -41,6 +41,9 @@
         <a class="tab" :class="{ 'tab-active': activeTab === 'plugins' }" @click="switchTab('plugins')">
           插件管理
         </a>
+        <a class="tab" :class="{ 'tab-active': activeTab === 'categories' }" @click="$router.push('/admin/categories')">
+          分类管理
+        </a>
         <a class="tab" :class="{ 'tab-active': activeTab === 'users' }" @click="switchTab('users')">
           用户管理
         </a>
@@ -71,7 +74,7 @@
                   <option value="draft">草稿</option>
                   <option value="archived">已归档</option>
                 </select>
-                <button class="btn btn-primary btn-sm" @click="openPluginModal()">创建插件</button>
+                <router-link to="/admin/plugins/create" class="btn btn-primary btn-sm">创建插件</router-link>
               </div>
             </div>
             <div v-if="adminStore.loading" class="flex justify-center py-8">
@@ -113,7 +116,7 @@
                     </td>
                     <td>{{ plugin.download_count || 0 }}</td>
                     <td>
-                      <button class="btn btn-ghost btn-xs" @click="openPluginModal(plugin)">编辑</button>
+                      <router-link :to="`/admin/plugins/${plugin.id}/edit`" class="btn btn-ghost btn-xs">编辑</router-link>
                       <button class="btn btn-ghost btn-xs text-error" @click="confirmDeletePlugin(plugin)">删除</button>
                     </td>
                   </tr>
@@ -256,8 +259,8 @@
                 <tbody>
                   <tr v-for="order in adminStore.orders" :key="order.id">
                     <td class="font-mono text-sm">{{ order.order_number }}</td>
-                    <td>{{ order.User?.name || order.User?.email || '-' }}</td>
-                    <td>{{ order.Plugin?.name || '-' }}</td>
+                    <td>{{ order.user?.name || order.user?.email || '-' }}</td>
+                    <td>{{ order.plugin?.name || '-' }}</td>
                     <td>${{ order.amount?.toFixed(2) }}</td>
                     <td>
                       <div class="badge badge-outline">{{ getPaymentMethodText(order.payment_method) }}</div>
@@ -328,77 +331,138 @@
           </div>
 
           <!-- Licenses Tab -->
-          <div v-if="activeTab === 'licenses'">
-            <div class="flex justify-between items-center mb-4">
-              <h2 class="card-title">授权管理</h2>
-              <div class="flex gap-2">
-                <select v-model="licenseStatusFilter" class="select select-bordered select-sm" @change="loadLicenses(1)">
-                  <option value="">全部状态</option>
-                  <option value="active">活跃</option>
-                  <option value="expired">已过期</option>
-                  <option value="revoked">已撤销</option>
+          <div v-if="activeTab === 'licenses'" class="space-y-6">
+            <!-- Header with Filters -->
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+              <div>
+                <h2 class="text-2xl font-bold text-base-content">授权管理</h2>
+                <p class="text-sm text-base-content/60 mt-1">管理和监控所有许可证授权</p>
+              </div>
+              <div class="flex gap-3">
+                <select v-model="licenseStatusFilter" 
+                        class="select select-bordered select-sm bg-base-100 hover:bg-base-200 transition-colors" 
+                        @change="loadLicenses(1)">
+                  <option value="">📋 全部状态</option>
+                  <option value="active">✅ 活跃</option>
+                  <option value="expired">⏰ 已过期</option>
+                  <option value="revoked">🚫 已撤销</option>
                 </select>
               </div>
             </div>
-            <div v-if="adminStore.loading" class="flex justify-center py-8">
-              <span class="loading loading-spinner loading-lg"></span>
+
+            <!-- Loading State -->
+            <div v-if="adminStore.loading" class="flex flex-col items-center justify-center py-16">
+              <span class="loading loading-spinner loading-lg text-primary"></span>
+              <p class="mt-4 text-base-content/60">加载中...</p>
             </div>
-            <div v-else-if="adminStore.licenses.length === 0" class="alert alert-info">
-              <span>暂无授权数据</span>
+
+            <!-- Empty State -->
+            <div v-else-if="adminStore.licenses.length === 0" class="text-center py-16">
+              <div class="inline-flex items-center justify-center w-20 h-20 rounded-full bg-base-200 mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-base-content/40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              </div>
+              <h3 class="text-lg font-semibold text-base-content mb-2">暂无授权数据</h3>
+              <p class="text-base-content/60">当前没有任何许可证记录</p>
             </div>
-            <div v-else class="overflow-x-auto">
-              <table class="table table-zebra">
-                <thead>
-                  <tr>
-                    <th>用户</th>
-                    <th>插件</th>
-                    <th>类型</th>
-                    <th>维护到期</th>
-                    <th>状态</th>
-                    <th>创建时间</th>
-                    <th>操作</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="license in adminStore.licenses" :key="license.id">
-                    <td>{{ license.User?.name || license.User?.email || '-' }}</td>
-                    <td>{{ license.Plugin?.name || '-' }}</td>
-                    <td>
-                      <div class="badge badge-outline">
-                        {{ license.license_type === 'permanent' ? '永久' : '试用' }}
+
+            <!-- Licenses Cards View -->
+            <div v-else class="grid gap-4">
+              <div v-for="license in adminStore.licenses" 
+                   :key="license.id" 
+                   class="card bg-base-100 shadow-sm hover:shadow-md transition-all duration-200 border border-base-300">
+                <div class="card-body p-5">
+                  <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                    <!-- User & Plugin Info -->
+                    <div class="flex-1 space-y-3">
+                      <div class="flex items-start gap-3">
+                        <div class="avatar placeholder">
+                          <div class="bg-primary text-primary-content rounded-full w-12 h-12">
+                            <span class="text-lg">{{ (license.user?.name || license.user?.email || 'U')[0].toUpperCase() }}</span>
+                          </div>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                          <div class="flex items-center gap-2 mb-1">
+                            <h3 class="font-semibold text-base-content truncate">
+                              {{ license.user?.name || license.user?.email || '-' }}
+                            </h3>
+                            <div class="badge badge-sm" :class="getLicenseStatusBadgeClass(license.status)">
+                              {{ getLicenseStatusText(license.status) }}
+                            </div>
+                          </div>
+                          <div class="flex flex-wrap items-center gap-2 text-sm text-base-content/60">
+                            <span class="flex items-center gap-1">
+                              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                              </svg>
+                              {{ license.plugin?.name || '-' }}
+                            </span>
+                            <span class="text-base-content/40">•</span>
+                            <div class="badge badge-outline badge-sm">
+                              {{ license.license_type === 'permanent' ? '🔒 永久' : '🕐 试用' }}
+                            </div>
+                          </div>
+                        </div>
                       </div>
-                    </td>
-                    <td>{{ formatDate(license.maintenance_until) }}</td>
-                    <td>
-                      <div class="badge" :class="getLicenseStatusBadgeClass(license.status)">
-                        {{ getLicenseStatusText(license.status) }}
+                      
+                      <!-- License Details -->
+                      <div class="grid grid-cols-2 gap-3 pl-15">
+                        <div class="text-sm">
+                          <span class="text-base-content/60">维护到期</span>
+                          <p class="font-medium text-base-content mt-0.5">{{ formatDate(license.maintenance_until) }}</p>
+                        </div>
+                        <div class="text-sm">
+                          <span class="text-base-content/60">创建时间</span>
+                          <p class="font-medium text-base-content mt-0.5">{{ formatDate(license.created_at) }}</p>
+                        </div>
                       </div>
-                    </td>
-                    <td>{{ formatDate(license.created_at) }}</td>
-                    <td>
-                      <button class="btn btn-ghost btn-xs"
-                              v-if="license.status === 'active'"
-                              @click="openExtendModal(license)">延期</button>
-                      <button class="btn btn-ghost btn-xs text-error"
-                              v-if="license.status === 'active'"
-                              @click="confirmRevokeLicense(license)">撤销</button>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="flex lg:flex-col gap-2 lg:items-end">
+                      <button v-if="license.status === 'active'"
+                              class="btn btn-sm btn-outline btn-primary gap-2"
+                              @click="openExtendModal(license)">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        延期
+                      </button>
+                      <button v-if="license.status === 'active'"
+                              class="btn btn-sm btn-outline btn-error gap-2"
+                              @click="confirmRevokeLicense(license)">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                        </svg>
+                        撤销
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
+
             <!-- Pagination -->
-            <div class="flex justify-center mt-4" v-if="adminStore.licensesPagination.total_pages > 1">
-              <div class="join">
-                <button class="join-item btn btn-sm"
+            <div class="flex justify-center mt-6" v-if="adminStore.licensesPagination.total_pages > 1">
+              <div class="join shadow-sm">
+                <button class="join-item btn btn-sm hover:btn-primary"
                         :disabled="adminStore.licensesPagination.page <= 1"
-                        @click="loadLicenses(adminStore.licensesPagination.page - 1)">«</button>
-                <button class="join-item btn btn-sm">
-                  {{ adminStore.licensesPagination.page }} / {{ adminStore.licensesPagination.total_pages }}
+                        @click="loadLicenses(adminStore.licensesPagination.page - 1)">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                  </svg>
                 </button>
-                <button class="join-item btn btn-sm"
+                <button class="join-item btn btn-sm">
+                  第 {{ adminStore.licensesPagination.page }} / {{ adminStore.licensesPagination.total_pages }} 页
+                </button>
+                <button class="join-item btn btn-sm hover:btn-primary"
                         :disabled="adminStore.licensesPagination.page >= adminStore.licensesPagination.total_pages"
-                        @click="loadLicenses(adminStore.licensesPagination.page + 1)">»</button>
+                        @click="loadLicenses(adminStore.licensesPagination.page + 1)">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
               </div>
             </div>
           </div>
@@ -463,8 +527,11 @@
             <textarea v-model="pluginForm.description" class="textarea textarea-bordered" rows="2"></textarea>
           </div>
           <div class="form-control">
-            <label class="label"><span class="label-text">详细描述</span></label>
-            <textarea v-model="pluginForm.long_description" class="textarea textarea-bordered" rows="4"></textarea>
+            <label class="label">
+              <span class="label-text">详细描述</span>
+              <span class="label-text-alt text-info">支持 Markdown 格式</span>
+            </label>
+            <MdEditor v-model="pluginForm.long_description" language="en-US" :preview="true" style="height: 400px;" />
           </div>
           <div class="grid grid-cols-2 gap-4">
             <div class="form-control col-span-2">
@@ -581,6 +648,8 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useAdminStore } from '@/stores/admin'
+import { MdEditor } from 'md-editor-v3'
+import 'md-editor-v3/lib/style.css'
 
 const router = useRouter()
 const authStore = useAuthStore()

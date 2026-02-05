@@ -20,8 +20,9 @@ onMounted(async () => {
   try {
     const token = route.query.token
     if (token) {
-      // Save token and fetch user info
-      localStorage.setItem('token', token)
+      // Save token to localStorage and store
+      authStore.setToken(token)
+      // Fetch user info
       await authStore.fetchUser()
       router.push('/dashboard')
     } else {

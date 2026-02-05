@@ -37,6 +37,12 @@ const router = createRouter({
       meta: { requiresAuth: true }
     },
     {
+      path: '/licenses/:id',
+      name: 'license-detail',
+      component: () => import('@/views/LicenseDetailView.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
       path: '/orders',
       name: 'orders',
       component: () => import('@/views/OrdersView.vue'),
@@ -52,6 +58,24 @@ const router = createRouter({
       path: '/admin',
       name: 'admin',
       component: () => import('@/views/admin/AdminDashboard.vue'),
+      meta: { requiresAuth: true, requiresAdmin: true }
+    },
+    {
+      path: '/admin/plugins/create',
+      name: 'admin-plugin-create',
+      component: () => import('@/views/admin/PluginForm.vue'),
+      meta: { requiresAuth: true, requiresAdmin: true }
+    },
+    {
+      path: '/admin/plugins/:id/edit',
+      name: 'admin-plugin-edit',
+      component: () => import('@/views/admin/PluginForm.vue'),
+      meta: { requiresAuth: true, requiresAdmin: true }
+    },
+    {
+      path: '/admin/categories',
+      name: 'admin-categories',
+      component: () => import('@/views/admin/CategoryManagement.vue'),
       meta: { requiresAuth: true, requiresAdmin: true }
     },
     {

@@ -191,6 +191,11 @@ export const useAdminStore = defineStore('admin', () => {
       const response = await api.get('/admin/licenses', { params })
       licenses.value = response.data.licenses || []
       licensesPagination.value = response.data.pagination || licensesPagination.value
+      
+      // Debug: log first license to check data structure
+      if (licenses.value.length > 0) {
+        console.log('First license data:', licenses.value[0])
+      }
     } catch (err) {
       error.value = err.message
       console.error('Failed to fetch licenses:', err)

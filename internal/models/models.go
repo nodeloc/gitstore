@@ -85,8 +85,9 @@ type Order struct {
 	CreatedAt            time.Time  `json:"created_at"`
 	UpdatedAt            time.Time  `json:"updated_at"`
 
-	User   User   `gorm:"foreignKey:UserID" json:"user"`
-	Plugin Plugin `gorm:"foreignKey:PluginID" json:"plugin"`
+	User    User     `gorm:"foreignKey:UserID" json:"user"`
+	Plugin  Plugin   `gorm:"foreignKey:PluginID" json:"plugin"`
+	License *License `gorm:"foreignKey:OrderID" json:"license,omitempty"`
 }
 
 type License struct {
@@ -94,7 +95,7 @@ type License struct {
 	UserID           uuid.UUID  `gorm:"type:uuid;not null" json:"user_id"`
 	PluginID         uuid.UUID  `gorm:"type:uuid;not null" json:"plugin_id"`
 	OrderID          uuid.UUID  `gorm:"type:uuid;not null" json:"order_id"`
-	GitHubAccountID  uuid.UUID  `gorm:"type:uuid;not null" json:"github_account_id"`
+	GitHubAccountID  uuid.UUID  `gorm:"type:uuid;column:git_hub_account_id;not null" json:"github_account_id"`
 	LicenseType      string     `gorm:"default:'permanent'" json:"license_type"` // permanent, trial
 	MaintenanceUntil time.Time  `gorm:"type:date;not null" json:"maintenance_until"`
 	Status           string     `gorm:"default:'active'" json:"status"` // active, expired, revoked
@@ -214,6 +215,25 @@ func (l *License) BeforeCreate(tx *gorm.DB) error {
 func (lh *LicenseHistory) BeforeCreate(tx *gorm.DB) error {
 	if lh.ID == uuid.Nil {
 		lh.ID = uuid.New()
+	}
+	return nil
+}
+
+type Category struct {
+	ID          uuid.UUID `gorm:"type:uuid;primary_key;default:uuid_generate_v4()" json:"id"`
+	Name        string    `gorm:"unique;not null" json:"name"`
+	Slug        string    `gorm:"unique;not null" json:"slug"`
+	Description string    `json:"description"`
+	IconURL     string    `json:"icon_url"`
+	SortOrder   int       `gorm:"default:0" json:"sort_order"`
+	IsActive    bool      `gorm:"default:true" json:"is_active"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+func (c *Category) BeforeCreate(tx *gorm.DB) error {
+	if c.ID == uuid.Nil {
+		c.ID = uuid.New()
 	}
 	return nil
 }

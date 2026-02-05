@@ -132,7 +132,7 @@
         </button>
 
         <div id="result"></div>
-        <a id="adminLink" href="http://localhost:3002/admin" class="admin-link" style="display:none;">
+        <a id="adminLink" href="http://localhost:3001/admin" class="admin-link" style="display:none;">
             进入管理后台 →
         </a>
 
@@ -142,7 +142,7 @@
                 <li>点击上方按钮获取管理员Token</li>
                 <li>Token会自动保存到浏览器</li>
                 <li>点击"进入管理后台"访问后台</li>
-                <li>如果没有自动跳转，请手动访问 <a href="http://localhost:3002/admin" target="_blank">http://localhost:3002/admin</a></li>
+                <li>如果没有自动跳转，请手动访问 <a href="http://localhost:3001/admin" target="_blank">http://localhost:3001/admin</a></li>
             </ol>
         </div>
     </div>
@@ -184,7 +184,7 @@
                     
                     // 延迟1秒后跳转
                     setTimeout(() => {
-                        window.location.href = 'http://localhost:3002/admin';
+                        window.location.href = 'http://localhost:3001/admin';
                     }, 1000);
                 } else {
                     throw new Error('未返回Token');

@@ -15,16 +15,16 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, cfg *config.Config) {
 	// Middleware
 	r.Use(middleware.CORSMiddleware())
 
-	// Initialize GitHub App Service (optional, may fail if not configured)
-	var githubAppSvc *services.GitHubAppService
-	if cfg.GitHubAppID != "" && cfg.GitHubAppPrivateKeyPath != "" {
-		svc, err := services.NewGitHubAppService(cfg)
-		if err != nil {
-			log.Printf("Warning: Failed to initialize GitHub App Service: %v", err)
-		} else {
-			githubAppSvc = svc
-			log.Println("GitHub App Service initialized successfully")
-		}
+	// Serve static files (uploaded images)
+	r.Static("/uploads", "./uploads")
+
+	// Initialize GitHub service (using Personal Access Token)
+	var githubSvc *services.GitHubService
+	if cfg.GitHubAdminToken != "" {
+		githubSvc = services.NewGitHubService(cfg)
+		log.Println("GitHub Service initialized successfully")
+	} else {
+		log.Println("Warning: GitHub Admin Token not configured, repository access features will be disabled")
 	}
 
 	// Initialize handlers
@@ -34,8 +34,11 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, cfg *config.Config) {
 	paymentHandler := handlers.NewPaymentHandler(db, cfg)
 	licenseHandler := handlers.NewLicenseHandler(db, cfg)
 	tutorialHandler := handlers.NewTutorialHandler(db, cfg)
-	adminHandler := handlers.NewAdminHandler(db, cfg, githubAppSvc)
+	categoryHandler := handlers.NewCategoryHandler(db)
+	adminHandler := handlers.NewAdminHandler(db, cfg, githubSvc)
 	dashboardHandler := handlers.NewDashboardHandler(db, cfg)
+	githubWebhookHandler := handlers.NewGitHubWebhookHandler(db, cfg)
+	uploadHandler := handlers.NewUploadHandler("./uploads")
 
 	// Dev auth handler (only in development)
 	var devAuthHandler *handlers.DevAuthHandler
@@ -80,13 +83,20 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, cfg *config.Config) {
 			tutorials.GET("/:slug", tutorialHandler.GetTutorial)
 		}
 
+		// Public categories routes
+		api.GET("/categories", categoryHandler.GetCategories)
+
 		// Payment webhook routes (no auth)
 		webhooks := api.Group("/webhooks")
 		{
 			webhooks.POST("/stripe", paymentHandler.StripeWebhook)
 			webhooks.POST("/paypal", paymentHandler.PayPalWebhook)
 			webhooks.POST("/alipay", paymentHandler.AlipayNotify)
+			webhooks.POST("/github", githubWebhookHandler.HandleGitHubAppWebhook)
 		}
+
+		// Public license verification API (no auth required)
+		api.GET("/licenses/:id/verify", licenseHandler.VerifyLicense)
 	}
 
 	// Protected routes (require authentication)
@@ -99,6 +109,7 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, cfg *config.Config) {
 			user.GET("/licenses", licenseHandler.GetUserLicenses)
 			user.GET("/orders", orderHandler.GetUserOrders)
 			user.GET("/github-accounts", authHandler.GetGitHubAccounts)
+			user.GET("/github-app/status", githubWebhookHandler.GetInstallationStatus)
 		}
 
 		// Order routes
@@ -181,6 +192,18 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, cfg *config.Config) {
 			adminTutorials.PUT("/:id", adminHandler.UpdateTutorial)
 			adminTutorials.DELETE("/:id", adminHandler.DeleteTutorial)
 		}
+
+		// Categories management
+		adminCategories := admin.Group("/categories")
+		{
+			adminCategories.GET("", categoryHandler.GetAllCategories)
+			adminCategories.POST("", categoryHandler.CreateCategory)
+			adminCategories.PUT("/:id", categoryHandler.UpdateCategory)
+			adminCategories.DELETE("/:id", categoryHandler.DeleteCategory)
+		}
+
+		// Image upload
+		admin.POST("/upload/image", uploadHandler.UploadImage)
 
 		// Statistics & Dashboard
 		adminStats := admin.Group("/statistics")

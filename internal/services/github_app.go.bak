@@ -91,19 +91,34 @@ func (s *GitHubAppService) RevokeRepositoryAccess(ctx context.Context, installat
 	return nil
 }
 
-// ListInstallationRepositories lists all repositories accessible by the installation
+// ListInstallationRepositories lists all repositories accessible by the installation (with pagination)
 func (s *GitHubAppService) ListInstallationRepositories(ctx context.Context, installationID int64) ([]*github.Repository, error) {
 	client, err := s.GetInstallationClient(ctx, installationID)
 	if err != nil {
 		return nil, err
 	}
 
-	repos, _, err := client.Apps.ListRepos(ctx, &github.ListOptions{PerPage: 100})
-	if err != nil {
-		return nil, fmt.Errorf("failed to list installation repositories: %w", err)
+	var allRepos []*github.Repository
+	opts := &github.ListOptions{
+		PerPage: 100,
+		Page:    1,
 	}
 
-	return repos.Repositories, nil
+	for {
+		repos, resp, err := client.Apps.ListRepos(ctx, opts)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list installation repositories: %w", err)
+		}
+
+		allRepos = append(allRepos, repos.Repositories...)
+
+		if resp.NextPage == 0 {
+			break
+		}
+		opts.Page = resp.NextPage
+	}
+
+	return allRepos, nil
 }
 
 // GetRepository gets repository information
@@ -122,7 +137,7 @@ func (s *GitHubAppService) GetRepository(ctx context.Context, owner, repo string
 	return repository, nil
 }
 
-// ListOrganizationRepositories lists all repositories in the organization
+// ListOrganizationRepositories lists all repositories in the organization (with pagination)
 func (s *GitHubAppService) ListOrganizationRepositories(ctx context.Context, org string) ([]*github.Repository, error) {
 	client, err := s.GetInstallationClient(ctx, s.installationID)
 	if err != nil {
@@ -130,9 +145,10 @@ func (s *GitHubAppService) ListOrganizationRepositories(ctx context.Context, org
 	}
 
 	opt := &github.RepositoryListByOrgOptions{
-		Type: "private",
+		Type: "all", // Get all repositories (public and private)
 		ListOptions: github.ListOptions{
 			PerPage: 100,
+			Page:    1,
 		},
 	}
 
@@ -213,4 +229,82 @@ func (s *GitHubAppService) GetTokenSource(ctx context.Context, installationID in
 	return oauth2.StaticTokenSource(&oauth2.Token{
 		AccessToken: token,
 	}), nil
+}
+
+// AddRepositoryCollaborator adds a user as a collaborator to a repository
+// If GITHUB_ADMIN_TOKEN is set, use it instead of the GitHub App
+func (s *GitHubAppService) AddRepositoryCollaborator(ctx context.Context, owner, repo, username string, permission string) error {
+	// Try using admin token first (for private apps)
+	if s.config.GitHubAdminToken != "" {
+		return s.addCollaboratorWithToken(ctx, owner, repo, username, permission)
+	}
+
+	// Fallback to GitHub App installation client
+	client, err := s.GetInstallationClient(ctx, s.installationID)
+	if err != nil {
+		return err
+	}
+
+	opts := &github.RepositoryAddCollaboratorOptions{
+		Permission: permission, // "pull", "push", "admin", "maintain", "triage"
+	}
+
+	_, _, err = client.Repositories.AddCollaborator(ctx, owner, repo, username, opts)
+	if err != nil {
+		return fmt.Errorf("failed to add collaborator: %w", err)
+	}
+
+	return nil
+}
+
+// addCollaboratorWithToken adds a collaborator using a personal access token
+func (s *GitHubAppService) addCollaboratorWithToken(ctx context.Context, owner, repo, username string, permission string) error {
+	ts := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: s.config.GitHubAdminToken})
+	tc := oauth2.NewClient(ctx, ts)
+	client := github.NewClient(tc)
+
+	opts := &github.RepositoryAddCollaboratorOptions{
+		Permission: permission,
+	}
+
+	_, _, err := client.Repositories.AddCollaborator(ctx, owner, repo, username, opts)
+	if err != nil {
+		return fmt.Errorf("failed to add collaborator with token: %w", err)
+	}
+
+	return nil
+}
+
+// RemoveRepositoryCollaborator removes a user as a collaborator from a repository
+func (s *GitHubAppService) RemoveRepositoryCollaborator(ctx context.Context, owner, repo, username string) error {
+	// Try using admin token first (for private apps)
+	if s.config.GitHubAdminToken != "" {
+		return s.removeCollaboratorWithToken(ctx, owner, repo, username)
+	}
+
+	client, err := s.GetInstallationClient(ctx, s.installationID)
+	if err != nil {
+		return err
+	}
+
+	_, err = client.Repositories.RemoveCollaborator(ctx, owner, repo, username)
+	if err != nil {
+		return fmt.Errorf("failed to remove collaborator: %w", err)
+	}
+
+	return nil
+}
+
+// removeCollaboratorWithToken removes a collaborator using a personal access token
+func (s *GitHubAppService) removeCollaboratorWithToken(ctx context.Context, owner, repo, username string) error {
+	ts := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: s.config.GitHubAdminToken})
+	tc := oauth2.NewClient(ctx, ts)
+	client := github.NewClient(tc)
+
+	_, err := client.Repositories.RemoveCollaborator(ctx, owner, repo, username)
+	if err != nil {
+		return fmt.Errorf("failed to remove collaborator with token: %w", err)
+	}
+
+	return nil
 }

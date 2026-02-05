@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -136,7 +138,7 @@ func (h *OrderHandler) GetUserOrders(c *gin.Context) {
 	userID, _ := c.Get("user_id")
 
 	var orders []models.Order
-	if err := h.db.Preload("Plugin").Where("user_id = ?", userID).Order("created_at DESC").Find(&orders).Error; err != nil {
+	if err := h.db.Preload("Plugin").Preload("License").Where("user_id = ?", userID).Order("created_at DESC").Find(&orders).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch orders"})
 		return
 	}
@@ -433,7 +435,7 @@ func (h *PaymentHandler) StripeWebhook(c *gin.Context) {
 			UserID:           order.UserID,
 			PluginID:         order.PluginID,
 			GitHubAccountID:  githubAccount.ID,
-			LicenseType:      "standard",
+			LicenseType:      "permanent",
 			Status:           "active",
 			MaintenanceUntil: maintenanceUntil,
 		}
@@ -647,6 +649,61 @@ func (h *LicenseHandler) GetLicenseHistory(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"history": history})
 }
 
+// VerifyLicense is a public API to verify license validity
+// Can be called by plugins, GitHub Apps, CI/CD, etc.
+func (h *LicenseHandler) VerifyLicense(c *gin.Context) {
+	licenseID := c.Param("id")
+	githubUsername := c.Query("github_username") // Optional: verify GitHub username matches
+
+	var license models.License
+	if err := h.db.Preload("Plugin").Preload("GitHubAccount").Preload("User").Where("id = ?", licenseID).First(&license).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"valid":   false,
+			"error":   "License not found",
+			"message": "Invalid license ID",
+		})
+		return
+	}
+
+	// Check if license is active
+	if license.Status != "active" {
+		c.JSON(http.StatusOK, gin.H{
+			"valid":   false,
+			"status":  license.Status,
+			"reason":  license.RevokedReason,
+			"message": "License is not active",
+		})
+		return
+	}
+
+	// Check maintenance period
+	now := time.Now()
+	maintenanceExpired := license.MaintenanceUntil.Before(now)
+
+	// If GitHub username provided, verify it matches
+	if githubUsername != "" && license.GitHubAccount.Login != githubUsername {
+		c.JSON(http.StatusOK, gin.H{
+			"valid":   false,
+			"error":   "GitHub username mismatch",
+			"message": "This license is bound to a different GitHub account",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"valid":              true,
+		"license_id":         license.ID,
+		"license_type":       license.LicenseType,
+		"status":             license.Status,
+		"plugin_name":        license.Plugin.Name,
+		"plugin_slug":        license.Plugin.Slug,
+		"github_username":    license.GitHubAccount.Login,
+		"maintenance_until":  license.MaintenanceUntil,
+		"maintenance_active": !maintenanceExpired,
+		"created_at":         license.CreatedAt,
+	})
+}
+
 // TutorialHandler handles tutorial-related requests
 type TutorialHandler struct {
 	db     *gorm.DB
@@ -687,16 +744,16 @@ func (h *TutorialHandler) GetTutorial(c *gin.Context) {
 
 // AdminHandler handles admin-related requests
 type AdminHandler struct {
-	db           *gorm.DB
-	config       *config.Config
-	githubAppSvc *services.GitHubAppService
+	db        *gorm.DB
+	config    *config.Config
+	githubSvc *services.GitHubService
 }
 
-func NewAdminHandler(db *gorm.DB, cfg *config.Config, githubAppSvc *services.GitHubAppService) *AdminHandler {
+func NewAdminHandler(db *gorm.DB, cfg *config.Config, githubSvc *services.GitHubService) *AdminHandler {
 	return &AdminHandler{
-		db:           db,
-		config:       cfg,
-		githubAppSvc: githubAppSvc,
+		db:        db,
+		config:    cfg,
+		githubSvc: githubSvc,
 	}
 }
 
@@ -925,25 +982,27 @@ func (h *AdminHandler) DeletePlugin(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Plugin deleted successfully"})
 }
 
-// ListGitHubRepos lists all repositories from GitHub App installation
+// ListGitHubRepos lists all repositories from GitHub (using configured account)
 func (h *AdminHandler) ListGitHubRepos(c *gin.Context) {
-	if h.githubAppSvc == nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "GitHub App service not configured"})
+	if h.githubSvc == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "GitHub service not configured"})
 		return
 	}
 
 	ctx := c.Request.Context()
 
-	// List repositories from the configured organization or installation
-	repos, err := h.githubAppSvc.ListOrganizationRepositories(ctx, h.config.GitHubOrgName)
+	// Get owner from query param, default to "nodeloc"
+	owner := c.DefaultQuery("owner", "nodeloc")
+
+	// List repositories for the specified owner
+	log.Printf("[GitHub API] Fetching repositories for owner: %s", owner)
+	repos, err := h.githubSvc.ListRepositories(ctx, owner)
 	if err != nil {
-		// Fallback to listing installation repositories
-		repos, err = h.githubAppSvc.ListInstallationRepositories(ctx, h.githubAppSvc.InstallationID())
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch GitHub repositories: " + err.Error()})
-			return
-		}
+		log.Printf("[GitHub API] Error fetching repositories: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch GitHub repositories: " + err.Error()})
+		return
 	}
+	log.Printf("[GitHub API] Successfully fetched %d repositories", len(repos))
 
 	// Transform to simpler format for frontend
 	type RepoInfo struct {
@@ -963,6 +1022,11 @@ func (h *AdminHandler) ListGitHubRepos(c *gin.Context) {
 	var repoList []RepoInfo
 	for _, repo := range repos {
 		if repo == nil {
+			continue
+		}
+
+		// Skip forked repositories
+		if repo.GetFork() {
 			continue
 		}
 
@@ -1132,6 +1196,98 @@ func (h *AdminHandler) UpdateOrderPaymentStatus(c *gin.Context) {
 		log.Printf("Failed to update order payment status: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update order payment status"})
 		return
+	}
+
+	log.Printf("[License Debug] After update - req.PaymentStatus=%s, order.ID=%s", req.PaymentStatus, order.ID)
+
+	// If status is paid, create license if it doesn't exist
+	if req.PaymentStatus == "paid" {
+		log.Printf("[License Debug] Payment status is paid, checking for existing license")
+		// Check if license already exists
+		var existingLicense models.License
+		err := h.db.Where("order_id = ?", order.ID).First(&existingLicense).Error
+		log.Printf("[License Debug] License query result - err: %v", err)
+		if err != nil && errors.Is(err, gorm.ErrRecordNotFound) {
+			// License doesn't exist, create one
+
+			// Get user's GitHub account (required)
+			var githubAccount models.GitHubAccount
+			if err := h.db.Where("user_id = ?", order.UserID).First(&githubAccount).Error; err != nil {
+				log.Printf("Cannot create license: user %s has no GitHub account: %v", order.UserID, err)
+				c.JSON(http.StatusBadRequest, gin.H{
+					"error":           "Cannot create license: user must login with GitHub first to link their account",
+					"order_updated":   true,
+					"license_created": false,
+				})
+				return
+			}
+
+			// Load plugin to get maintenance months
+			var plugin models.Plugin
+			if err := h.db.Where("id = ?", order.PluginID).First(&plugin).Error; err != nil {
+				log.Printf("Failed to find plugin %s: %v", order.PluginID, err)
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Order updated but failed to find plugin"})
+				return
+			}
+
+			// Calculate maintenance expiry
+			maintenanceMonths := plugin.DefaultMaintenanceMonths
+			if maintenanceMonths == 0 {
+				maintenanceMonths = 12
+			}
+			maintenanceUntil := time.Now().AddDate(0, maintenanceMonths, 0)
+
+			// Create license
+			license := models.License{
+				OrderID:          order.ID,
+				UserID:           order.UserID,
+				PluginID:         order.PluginID,
+				GitHubAccountID:  githubAccount.ID,
+				LicenseType:      "permanent",
+				Status:           "active",
+				MaintenanceUntil: maintenanceUntil,
+			}
+
+			if err := h.db.Create(&license).Error; err != nil {
+				log.Printf("Failed to create license for order %s: %v", order.ID, err)
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Order updated but failed to create license"})
+				return
+			}
+
+			log.Printf("Successfully created license for order %s", order.ID)
+
+			// Grant repository access via collaborator invitation
+			if h.githubSvc != nil && plugin.GitHubRepoName != "" && githubAccount.Login != "" {
+				ctx := context.Background()
+
+				// Split repo name into owner/repo
+				repoParts := strings.Split(plugin.GitHubRepoName, "/")
+				if len(repoParts) != 2 {
+					log.Printf("[Repository Access] Invalid repo name format: %s", plugin.GitHubRepoName)
+				} else {
+					owner, repo := repoParts[0], repoParts[1]
+
+					log.Printf("[Repository Access] Inviting %s as collaborator to %s with pull permission",
+						githubAccount.Login, plugin.GitHubRepoName)
+
+					err := h.githubSvc.AddRepositoryCollaborator(ctx, owner, repo, githubAccount.Login, "pull")
+					if err != nil {
+						log.Printf("[Repository Access] Warning: Failed to add collaborator: %v", err)
+					} else {
+						log.Printf("[Repository Access] Successfully invited %s as collaborator to %s",
+							githubAccount.Login, plugin.GitHubRepoName)
+
+						// Log the action
+						history := models.LicenseHistory{
+							LicenseID:  license.ID,
+							Action:     "collaborator_invited",
+							OccurredAt: time.Now(),
+						}
+						h.db.Create(&history)
+					}
+				}
+			}
+		}
 	}
 
 	// Reload order with associations

@@ -120,7 +120,7 @@ func (h *AuthHandler) GitHubCallback(c *gin.Context) {
 
 	// Create or update GitHub account
 	var githubAccount models.GitHubAccount
-	err = h.db.Where("github_user_id = ?", githubUser.GetID()).First(&githubAccount).Error
+	err = h.db.Where("git_hub_user_id = ?", githubUser.GetID()).First(&githubAccount).Error
 	if err == gorm.ErrRecordNotFound {
 		githubID := githubUser.GetID()
 		githubAccount = models.GitHubAccount{
