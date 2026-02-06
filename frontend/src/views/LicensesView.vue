@@ -30,12 +30,12 @@
                 </h3>
                 <div class="flex items-center gap-2">
                   <span 
-                    class="badge"
-                    :class="{
-                      'badge-success': license.status === 'active',
-                      'badge-error': license.status === 'expired',
-                      'badge-warning': license.status === 'pending'
-                    }"
+                    :class="[
+                      'px-2 inline-flex text-xs leading-5 font-semibold rounded-full',
+                      license.status === 'active' ? 'bg-green-100 text-green-800' :
+                      license.status === 'expired' ? 'bg-red-100 text-red-800' :
+                      'bg-yellow-100 text-yellow-800'
+                    ]"
                   >
                     {{ license.status }}
                   </span>

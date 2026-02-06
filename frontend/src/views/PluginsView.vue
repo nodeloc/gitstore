@@ -6,10 +6,10 @@
         <div class="flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div>
             <h1 class="text-3xl md:text-4xl font-bold mb-2 bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-              {{ $t('plugins.title') }}
+              {{ currentCategory ? currentCategory.name : $t('plugins.title') }}
             </h1>
             <p class="text-base text-base-content/70">
-              {{ $t('plugins.subtitle') }}
+              {{ currentCategory ? currentCategory.description : $t('plugins.subtitle') }}
             </p>
           </div>
           
@@ -66,7 +66,7 @@
               <div class="flex-1 min-w-0">
                 <h2 class="card-title text-lg mb-1 truncate">{{ plugin.name }}</h2>
                 <div class="flex items-center gap-2 text-sm text-base-content/60">
-                  <span v-if="plugin.category" class="badge badge-sm badge-outline">{{ plugin.category }}</span>
+                  <span v-if="plugin.category" class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-primary/10 text-primary">{{ plugin.category }}</span>
                   <span v-if="plugin.version">v{{ plugin.version }}</span>
                 </div>
               </div>
@@ -114,6 +114,14 @@ const categoryFilter = ref('')
 watch(() => route.query.category, (newCategory) => {
   categoryFilter.value = newCategory || ''
 }, { immediate: true })
+
+// Get current category info
+const currentCategory = computed(() => {
+  if (!categoryFilter.value || categories.value.length === 0) return null
+  
+  const categoryLower = categoryFilter.value.toLowerCase()
+  return categories.value.find(cat => cat.slug?.toLowerCase() === categoryLower)
+})
 
 const filteredPlugins = computed(() => {
   let result = plugins.value

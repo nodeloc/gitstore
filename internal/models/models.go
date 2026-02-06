@@ -258,3 +258,21 @@ func (s *Statistic) BeforeCreate(tx *gorm.DB) error {
 	}
 	return nil
 }
+
+type Page struct {
+	ID        uuid.UUID `gorm:"type:uuid;primary_key;default:uuid_generate_v4()" json:"id"`
+	Slug      string    `gorm:"unique;not null" json:"slug"`
+	Title     string    `gorm:"not null" json:"title"`
+	Content   string    `gorm:"type:text;not null" json:"content"`
+	Status    string    `gorm:"default:'draft'" json:"status"` // draft, published
+	SortOrder int       `gorm:"default:0" json:"sort_order"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+func (p *Page) BeforeCreate(tx *gorm.DB) error {
+	if p.ID == uuid.Nil {
+		p.ID = uuid.New()
+	}
+	return nil
+}

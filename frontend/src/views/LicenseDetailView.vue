@@ -24,7 +24,14 @@
             
             <div>
               <p class="text-sm opacity-70">{{ $t('licenses.status') }}</p>
-              <span :class="getStatusClass(license.status)">
+              <span 
+                :class="[
+                  'px-2 inline-flex text-xs leading-5 font-semibold rounded-full',
+                  license.status === 'active' ? 'bg-green-100 text-green-800' :
+                  license.status === 'expired' ? 'bg-red-100 text-red-800' :
+                  'bg-yellow-100 text-yellow-800'
+                ]"
+              >
                 {{ license.status }}
               </span>
             </div>
@@ -77,7 +84,7 @@
             <!-- Step 1: Accept Invitation -->
             <div class="mb-8">
               <h3 class="flex items-center gap-2 text-xl font-bold mb-4">
-                <span class="badge badge-primary badge-lg">1</span>
+                <span class="px-3 py-1 inline-flex text-sm leading-5 font-semibold rounded-full bg-primary/10 text-primary">1</span>
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                 </svg>
@@ -89,7 +96,7 @@
                 
                 <div class="space-y-4">
                   <div class="flex items-start gap-3">
-                    <span class="badge badge-primary">①</span>
+                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-primary/10 text-primary">①</span>
                     <div class="flex-1">
                       <p class="font-semibold mb-2">{{ $t('licenseDetail.step1Check') }}</p>
                       <p class="text-sm opacity-80">{{ $t('licenseDetail.step1CheckDesc') }}</p>
@@ -98,7 +105,7 @@
                   </div>
                   
                   <div class="flex items-start gap-3">
-                    <span class="badge badge-primary">②</span>
+                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-primary/10 text-primary">②</span>
                     <div class="flex-1">
                       <p class="font-semibold mb-2">{{ $t('licenseDetail.step1Open') }}</p>
                       <a href="https://github.com/notifications" target="_blank" class="btn btn-primary btn-sm mt-2">
@@ -111,7 +118,7 @@
                   </div>
                   
                   <div class="flex items-start gap-3">
-                    <span class="badge badge-primary">③</span>
+                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-primary/10 text-primary">③</span>
                     <div class="flex-1">
                       <p class="font-semibold mb-2">{{ $t('licenseDetail.step1Find') }}</p>
                       <p class="text-sm opacity-80">{{ $t('licenseDetail.step1FindDesc') }}</p>
@@ -124,7 +131,7 @@
                   </div>
                   
                   <div class="flex items-start gap-3">
-                    <span class="badge badge-primary">④</span>
+                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-primary/10 text-primary">④</span>
                     <div class="flex-1">
                       <p class="font-semibold mb-2">{{ $t('licenseDetail.step1Accept') }}</p>
                       <p class="text-sm opacity-80">{{ $t('licenseDetail.step1AcceptDesc') }}</p>
@@ -148,7 +155,7 @@
             <!-- Step 2: Clone Repository -->
             <div class="mb-8">
               <h3 class="flex items-center gap-2 text-xl font-bold mb-4">
-                <span class="badge badge-primary badge-lg">2</span>
+                <span class="px-3 py-1 inline-flex text-sm leading-5 font-semibold rounded-full bg-primary/10 text-primary">2</span>
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                 </svg>
@@ -198,7 +205,7 @@
             <!-- Step 3: Installation -->
             <div class="mb-8">
               <h3 class="flex items-center gap-2 text-xl font-bold mb-4">
-                <span class="badge badge-primary badge-lg">3</span>
+                <span class="px-3 py-1 inline-flex text-sm leading-5 font-semibold rounded-full bg-primary/10 text-primary">3</span>
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
                 </svg>
@@ -240,23 +247,23 @@
                 <tbody>
                   <tr>
                     <td>{{ $t('licenseDetail.featureAccess') }}</td>
-                    <td><span class="badge badge-success">✓ {{ $t('licenseDetail.available') }}</span></td>
-                    <td><span class="badge badge-error">✗ {{ $t('licenseDetail.removed') }}</span></td>
+                    <td><span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">✓ {{ $t('licenseDetail.available') }}</span></td>
+                    <td><span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">✗ {{ $t('licenseDetail.removed') }}</span></td>
                   </tr>
                   <tr>
                     <td>{{ $t('licenseDetail.featureUpdates') }}</td>
-                    <td><span class="badge badge-success">✓ {{ $t('licenseDetail.yes') }}</span></td>
-                    <td><span class="badge badge-ghost">✗ {{ $t('licenseDetail.no') }}</span></td>
+                    <td><span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">✓ {{ $t('licenseDetail.yes') }}</span></td>
+                    <td><span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">✗ {{ $t('licenseDetail.no') }}</span></td>
                   </tr>
                   <tr>
                     <td>{{ $t('licenseDetail.featureSupport') }}</td>
-                    <td><span class="badge badge-success">✓ {{ $t('licenseDetail.provided') }}</span></td>
-                    <td><span class="badge badge-ghost">✗ {{ $t('licenseDetail.notProvided') }}</span></td>
+                    <td><span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">✓ {{ $t('licenseDetail.provided') }}</span></td>
+                    <td><span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">✗ {{ $t('licenseDetail.notProvided') }}</span></td>
                   </tr>
                   <tr>
                     <td>{{ $t('licenseDetail.featureDownloaded') }}</td>
-                    <td><span class="badge badge-success">✓ {{ $t('licenseDetail.usable') }}</span></td>
-                    <td><span class="badge badge-success">✓ {{ $t('licenseDetail.permanent') }}</span></td>
+                    <td><span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">✓ {{ $t('licenseDetail.usable') }}</span></td>
+                    <td><span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">✓ {{ $t('licenseDetail.permanent') }}</span></td>
                   </tr>
                 </tbody>
               </table>
@@ -418,7 +425,7 @@ const renewLicense = () => {
 const copyLicenseId = async () => {
   try {
     await navigator.clipboard.writeText(license.value.id)
-    alert('License ID copied to clipboard!')
+    toast.success('License ID copied to clipboard!')
   } catch (error) {
     console.error('Failed to copy:', error)
   }

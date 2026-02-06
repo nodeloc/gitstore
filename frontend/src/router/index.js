@@ -1,5 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { toast } from '@/utils/toast'
+import i18n from '@/i18n'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -73,10 +75,15 @@ const router = createRouter({
       meta: { requiresAuth: true, requiresAdmin: true }
     },
     {
-      path: '/admin/categories',
-      name: 'admin-categories',
-      component: () => import('@/views/admin/CategoryManagement.vue'),
+      path: '/admin/pages',
+      name: 'admin-pages',
+      component: () => import('@/views/admin/PageManagement.vue'),
       meta: { requiresAuth: true, requiresAdmin: true }
+    },
+    {
+      path: '/pages/:slug',
+      name: 'page',
+      component: () => import('@/views/PageView.vue')
     },
     {
       path: '/:pathMatch(.*)*',
@@ -104,6 +111,7 @@ router.beforeEach((to, from, next) => {
   // Check if route requires authentication
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {
     console.log('❌ Auth required but not authenticated, redirecting to home')
+    toast.error(i18n.global.t('auth.loginRequired'))
     next({ name: 'home' })
     return
   }
@@ -111,6 +119,7 @@ router.beforeEach((to, from, next) => {
   // Check if route requires admin
   if (to.meta.requiresAdmin && !authStore.isAdmin) {
     console.log('❌ Admin required but not admin, redirecting to dashboard')
+    toast.error(i18n.global.t('auth.adminRequired'))
     next({ name: 'dashboard' })
     return
   }

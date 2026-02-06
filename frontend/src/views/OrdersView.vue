@@ -62,12 +62,13 @@
                 
                 <div>
                   <span 
-                    class="badge badge-lg"
-                    :class="{
-                      'badge-success': order.payment_status === 'paid',
-                      'badge-error': order.payment_status === 'failed',
-                      'badge-warning': order.payment_status === 'pending'
-                    }"
+                    :class="[
+                      'px-3 py-1 inline-flex text-sm leading-5 font-semibold rounded-full',
+                      order.payment_status === 'paid' ? 'bg-green-100 text-green-800' :
+                      order.payment_status === 'failed' ? 'bg-red-100 text-red-800' :
+                      order.payment_status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                      'bg-gray-100 text-gray-800'
+                    ]"
                   >
                     {{ $t(`orders.${order.payment_status}`) }}
                   </span>
@@ -168,11 +169,11 @@ const retryPayment = async (order) => {
       window.location.href = response.data.pay_url
     } else if (response.data.qrcode) {
       // 显示二维码
-      alert('Please scan the QR code: ' + response.data.qrcode)
+      toast.info('Please scan the QR code: ' + response.data.qrcode)
     }
   } catch (error) {
     console.error('Failed to retry payment:', error)
-    alert('Failed to initiate payment')
+    toast.error('Failed to initiate payment')
   }
 }
 </script>

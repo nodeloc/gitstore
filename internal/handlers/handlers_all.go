@@ -1685,6 +1685,20 @@ func (h *AdminHandler) UpdateSettings(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Settings updated successfully"})
 }
 
+// GetPublicSettings returns public settings that can be accessed without authentication
+func (h *AdminHandler) GetPublicSettings(c *gin.Context) {
+	var settings []models.SystemSetting
+	// Only return specific public settings
+	publicKeys := []string{"site_name", "site_subtitle", "logo_url"}
+
+	if err := h.db.Where("key IN ?", publicKeys).Find(&settings).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch settings"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"settings": settings})
+}
+
 // ==================== User Management ====================
 
 func (h *AdminHandler) ListAllUsers(c *gin.Context) {

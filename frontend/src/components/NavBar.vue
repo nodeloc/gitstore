@@ -5,16 +5,18 @@
         <div class="flex items-center gap-8">
           <!-- Logo -->
           <RouterLink to="/" class="flex items-center gap-3 hover:opacity-80 transition-opacity">
-            <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-lg">
+            <div v-if="logoUrl" class="w-10 h-10 flex items-center justify-center overflow-hidden">
+              <img :src="logoUrl" :alt="siteName" class="w-full h-full object-contain" />
+            </div>
+            <div v-else class="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-lg">
               <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
               </svg>
             </div>
             <div class="hidden sm:block">
               <div class="font-bold text-xl bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-                GitStore
+                {{ siteName }}
               </div>
-              <div class="text-xs text-base-content/60 -mt-1">Plugin Marketplace</div>
             </div>
           </RouterLink>
 
@@ -186,6 +188,9 @@ const { locale } = useI18n()
 const authStore = useAuthStore()
 const router = useRouter()
 const categories = ref([])
+const siteName = ref('GitStore')
+const siteSubtitle = ref('Plugin Marketplace')
+const logoUrl = ref('')
 
 onMounted(async () => {
   try {
@@ -193,6 +198,21 @@ onMounted(async () => {
     categories.value = response.data.categories || []
   } catch (error) {
     console.error('Failed to load categories:', error)
+  }
+
+  // Load site settings
+  try {
+    const response = await api.get('/settings/public')
+    if (response.data.settings) {
+      const siteNameSetting = response.data.settings.find(s => s.key === 'site_name')
+      const siteSubtitleSetting = response.data.settings.find(s => s.key === 'site_subtitle')
+      const logoUrlSetting = response.data.settings.find(s => s.key === 'logo_url')
+      if (siteNameSetting) siteName.value = siteNameSetting.value
+      if (siteSubtitleSetting) siteSubtitle.value = siteSubtitleSetting.value
+      if (logoUrlSetting && logoUrlSetting.value) logoUrl.value = logoUrlSetting.value
+    }
+  } catch (error) {
+    console.log('Failed to load site settings, using defaults')
   }
 })
 

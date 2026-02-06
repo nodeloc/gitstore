@@ -15,9 +15,8 @@
         
         <!-- Tags/Badges -->
         <div class="flex gap-2 flex-wrap">
-          <span v-if="plugin.category" class="badge badge-primary">{{ plugin.category }}</span>
-          <span class="badge badge-outline">v{{ plugin.version || '1.0.0' }}</span>
-          <span class="badge badge-outline">{{ plugin.download_count || 0 }} {{ $t('pluginDetail.downloads') }}</span>
+          <span v-if="plugin.category" class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-primary/10 text-primary">{{ plugin.category }}</span>
+          <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">v{{ plugin.version || '1.0.0' }}</span>
         </div>
       </div>
 

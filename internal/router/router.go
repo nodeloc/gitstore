@@ -35,6 +35,7 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, cfg *config.Config) {
 	licenseHandler := handlers.NewLicenseHandler(db, cfg)
 	tutorialHandler := handlers.NewTutorialHandler(db, cfg)
 	categoryHandler := handlers.NewCategoryHandler(db)
+	pageHandler := handlers.NewPageHandler(db)
 	adminHandler := handlers.NewAdminHandler(db, cfg, githubSvc)
 	dashboardHandler := handlers.NewDashboardHandler(db, cfg)
 	githubWebhookHandler := handlers.NewGitHubWebhookHandler(db, cfg)
@@ -85,6 +86,16 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, cfg *config.Config) {
 
 		// Public categories routes
 		api.GET("/categories", categoryHandler.GetCategories)
+
+		// Public page routes
+		pages := api.Group("/pages")
+		{
+			pages.GET("", pageHandler.GetPublicPages)
+			pages.GET("/:slug", pageHandler.GetPublicPageBySlug)
+		}
+
+		// Public settings route (for site name, etc.)
+		api.GET("/settings/public", adminHandler.GetPublicSettings)
 
 		// Payment webhook routes (no auth)
 		webhooks := api.Group("/webhooks")
@@ -200,6 +211,16 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, cfg *config.Config) {
 			adminCategories.POST("", categoryHandler.CreateCategory)
 			adminCategories.PUT("/:id", categoryHandler.UpdateCategory)
 			adminCategories.DELETE("/:id", categoryHandler.DeleteCategory)
+		}
+
+		// Pages management
+		adminPages := admin.Group("/pages")
+		{
+			adminPages.GET("", pageHandler.GetAdminPages)
+			adminPages.GET("/:id", pageHandler.GetAdminPageByID)
+			adminPages.POST("", pageHandler.CreatePage)
+			adminPages.PUT("/:id", pageHandler.UpdatePage)
+			adminPages.DELETE("/:id", pageHandler.DeletePage)
 		}
 
 		// Image upload

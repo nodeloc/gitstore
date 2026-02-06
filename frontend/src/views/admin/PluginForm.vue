@@ -1,5 +1,6 @@
 <template>
-  <div class="container mx-auto px-4 py-8">
+  <div class="min-h-screen bg-base-200 py-8">
+  <div class="container mx-auto px-4">
     <div class="max-w-4xl mx-auto">
       <div class="mb-6">
         <button @click="$router.back()" class="btn btn-ghost btn-sm">
@@ -121,10 +122,12 @@
             </div>
 
             <div class="form-control">
-              <label class="label cursor-pointer justify-start gap-3">
-                <input v-model="form.is_active" type="checkbox" class="checkbox" />
-                <span class="label-text">启用（用户可见并可购买）</span>
-              </label>
+              <label class="label"><span class="label-text">状态</span></label>
+              <select v-model="form.status" class="select select-bordered">
+                <option value="draft">草稿（Draft）- 仅管理员可见</option>
+                <option value="published">已发布（Published）- 用户可见并可购买</option>
+                <option value="archived">已归档（Archived）- 已下架</option>
+              </select>
             </div>
 
             <div class="divider"></div>
@@ -140,6 +143,7 @@
         </div>
       </div>
     </div>
+  </div>
   </div>
 </template>
 
@@ -187,9 +191,9 @@ const form = ref({
   currency: 'USD',
   version: '1.0.0',
   default_maintenance_months: 12,
-  github_repo_id: '',
-  github_repo_name: '',
-  is_active: true
+  status: 'draft',
+  github_repo_id: 0,
+  github_repo_name: ''
 })
 
 onMounted(async () => {
@@ -212,7 +216,12 @@ const loadPlugin = async () => {
   try {
     loading.value = true
     const response = await api.get(`/admin/plugins/${route.params.id}`)
-    form.value = response.data.plugin
+    const plugin = response.data.plugin
+    // Ensure status field is set correctly
+    form.value = {
+      ...plugin,
+      status: plugin.status || 'draft'
+    }
   } catch (error) {
     console.error('Failed to load plugin:', error)
     toast.error('加载插件失败')
@@ -245,7 +254,7 @@ const loadGitHubRepos = async () => {
 const onGitHubRepoSelected = () => {
   if (selectedGitHubRepo.value) {
     const repo = JSON.parse(selectedGitHubRepo.value)
-    form.value.github_repo_id = String(repo.id)
+    form.value.github_repo_id = repo.id
     form.value.github_repo_name = repo.full_name
     if (!form.value.name) {
       form.value.name = repo.name
@@ -260,11 +269,17 @@ const handleSubmit = async () => {
   try {
     loading.value = true
     
+    // Ensure github_repo_id is a number
+    const payload = {
+      ...form.value,
+      github_repo_id: form.value.github_repo_id ? Number(form.value.github_repo_id) : 0
+    }
+    
     if (isEdit.value) {
-      await api.put(`/admin/plugins/${route.params.id}`, form.value)
+      await api.put(`/admin/plugins/${route.params.id}`, payload)
       toast.success('插件更新成功')
     } else {
-      await api.post('/admin/plugins', form.value)
+      await api.post('/admin/plugins', payload)
       toast.success('插件创建成功')
     }
     
