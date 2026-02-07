@@ -300,6 +300,7 @@
     "pleaseWait": "Please wait while we confirm your payment",
     "successMessage": "Your payment has been completed successfully and order has been created",
     "errorMessage": "Payment verification failed, please contact support",
+    "plugin": "Plugin",
     "orderId": "Order ID",
     "tradeNo": "Transaction No",
     "amount": "Amount",

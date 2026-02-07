@@ -298,6 +298,7 @@
     "pleaseWait": "请稍候，正在确认您的支付",
     "successMessage": "您的支付已成功完成，订单已生成",
     "errorMessage": "支付验证失败，请联系客服",
+    "plugin": "插件",
     "orderId": "订单号",
     "tradeNo": "交易号",
     "amount": "金额",

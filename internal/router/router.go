@@ -103,6 +103,7 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, cfg *config.Config) {
 			webhooks.POST("/stripe", paymentHandler.StripeWebhook)
 			webhooks.POST("/paypal", paymentHandler.PayPalWebhook)
 			webhooks.POST("/alipay", paymentHandler.AlipayNotify)
+			webhooks.GET("/alipay", paymentHandler.AlipayNotify) // 易支付使用 GET 请求
 			webhooks.POST("/github", githubWebhookHandler.HandleGitHubAppWebhook)
 		}
 

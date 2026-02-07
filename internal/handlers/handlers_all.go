@@ -521,24 +521,35 @@ func (h *PaymentHandler) AlipayNotify(c *gin.Context) {
 		return
 	}
 
-	// 获取所有POST参数
-	if err := c.Request.ParseForm(); err != nil {
-		log.Printf("Failed to parse form: %v", err)
-		c.String(http.StatusBadRequest, "fail")
-		return
-	}
-
-	// 转换为map[string]string
+	// 获取参数（支持 GET 和 POST）
 	params := make(map[string]string)
-	for key, values := range c.Request.PostForm {
-		if len(values) > 0 {
-			params[key] = values[0]
+	
+	// 优先从 Query 参数获取（易支付使用 GET）
+	if len(c.Request.URL.Query()) > 0 {
+		for key, values := range c.Request.URL.Query() {
+			if len(values) > 0 {
+				params[key] = values[0]
+			}
+		}
+	} else {
+		// 从 POST Form 获取
+		if err := c.Request.ParseForm(); err != nil {
+			log.Printf("Failed to parse form: %v", err)
+			c.String(http.StatusBadRequest, "fail")
+			return
+		}
+		for key, values := range c.Request.PostForm {
+			if len(values) > 0 {
+				params[key] = values[0]
+			}
 		}
 	}
 
+	log.Printf("📥 Alipay notification received: %v", params)
+
 	// 验证签名
 	if err := h.alipayService.VerifyNotify(params); err != nil {
-		log.Printf("Failed to verify Alipay signature: %v", err)
+		log.Printf("❌ Failed to verify Alipay signature: %v", err)
 		c.String(http.StatusBadRequest, "fail")
 		return
 	}
@@ -547,6 +558,8 @@ func (h *PaymentHandler) AlipayNotify(c *gin.Context) {
 	tradeStatus := params["trade_status"] // 订单状态
 	outTradeNo := params["out_trade_no"]  // 商户订单号
 	tradeNo := params["trade_no"]         // 平台订单号
+
+	log.Printf("💰 Processing payment: OrderID=%s, TradeNo=%s, Status=%s", outTradeNo, tradeNo, tradeStatus)
 
 	// 解析订单ID
 	orderUUID, err := uuid.Parse(outTradeNo)
@@ -568,7 +581,7 @@ func (h *PaymentHandler) AlipayNotify(c *gin.Context) {
 	if tradeStatus == "TRADE_SUCCESS" || tradeStatus == "1" {
 		// 检查订单状态，避免重复处理
 		if order.PaymentStatus == "paid" {
-			log.Printf("Order already completed: %s", outTradeNo)
+			log.Printf("✅ Order already completed: %s", outTradeNo)
 			c.String(http.StatusOK, "success")
 			return
 		}
@@ -577,15 +590,17 @@ func (h *PaymentHandler) AlipayNotify(c *gin.Context) {
 		order.PaymentStatus = "paid"
 		order.PaymentMethod = "alipay"
 		if err := h.db.Save(&order).Error; err != nil {
-			log.Printf("Failed to update order: %v", err)
+			log.Printf("❌ Failed to update order: %v", err)
 			c.String(http.StatusInternalServerError, "fail")
 			return
 		}
 
+		log.Printf("✅ Order status updated to paid: %s", outTradeNo)
+
 		// 获取用户的第一个GitHub账户
 		var githubAccount models.GitHubAccount
 		if err := h.db.Where("user_id = ?", order.UserID).First(&githubAccount).Error; err != nil {
-			log.Printf("Failed to find GitHub account for user: %v", err)
+			log.Printf("❌ Failed to find GitHub account for user: %v", err)
 			c.String(http.StatusInternalServerError, "fail")
 			return
 		}
@@ -608,12 +623,13 @@ func (h *PaymentHandler) AlipayNotify(c *gin.Context) {
 		}
 
 		if err := h.db.Create(&license).Error; err != nil {
-			log.Printf("Failed to create license: %v", err)
+			log.Printf("❌ Failed to create license: %v", err)
 			c.String(http.StatusInternalServerError, "fail")
 			return
 		}
 
-		log.Printf("Payment successful - Order: %s, TradeNo: %s", outTradeNo, tradeNo)
+		log.Printf("🎉 License created successfully for order: %s", outTradeNo)
+		log.Printf("✅ Payment successful - Order: %s, TradeNo: %s", outTradeNo, tradeNo)
 		c.String(http.StatusOK, "success")
 		return
 	}

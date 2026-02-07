@@ -21,6 +21,10 @@
             <p class="text-base-content/70">{{ $t('payment.successMessage') }}</p>
             
             <div v-if="orderInfo" class="bg-base-200 rounded-lg p-4 text-left space-y-2">
+              <div v-if="orderInfo.pluginName" class="flex justify-between text-sm">
+                <span class="text-base-content/60">{{ $t('payment.plugin') }}:</span>
+                <span class="font-medium">{{ orderInfo.pluginName }}</span>
+              </div>
               <div class="flex justify-between text-sm">
                 <span class="text-base-content/60">{{ $t('payment.orderId') }}:</span>
                 <span class="font-mono">{{ orderInfo.orderId }}</span>
@@ -31,7 +35,7 @@
               </div>
               <div v-if="orderInfo.amount" class="flex justify-between text-sm">
                 <span class="text-base-content/60">{{ $t('payment.amount') }}:</span>
-                <span class="font-semibold">${{ orderInfo.amount }}</span>
+                <span class="font-semibold">{{ orderInfo.currency || '$' }}{{ orderInfo.amount }}</span>
               </div>
             </div>
 
@@ -74,6 +78,7 @@
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { toast } from '@/utils/toast'
+import api from '@/utils/api'
 
 const route = useRoute()
 const router = useRouter()
@@ -91,15 +96,35 @@ onMounted(async () => {
     
     // 检查支付状态
     if (params.trade_status === 'TRADE_SUCCESS') {
-      success.value = true
-      orderInfo.value = {
-        orderId: params.out_trade_no,
-        tradeNo: params.trade_no || params.api_trade_no,
-        amount: params.money,
-        type: params.type
+      // 获取订单完整信息
+      try {
+        const response = await api.get(`/orders/${params.out_trade_no}`)
+        const order = response.data.order
+        
+        success.value = true
+        orderInfo.value = {
+          orderId: order.order_number, // 使用 order_number 而不是 UUID
+          orderUUID: params.out_trade_no,
+          tradeNo: params.trade_no || params.api_trade_no,
+          amount: order.amount,
+          currency: order.currency,
+          pluginName: order.plugin?.name,
+          type: params.type
+        }
+        
+        toast.success('支付成功！')
+      } catch (err) {
+        console.error('Failed to fetch order:', err)
+        // 即使获取订单失败，也显示基本信息
+        success.value = true
+        orderInfo.value = {
+          orderId: params.out_trade_no,
+          tradeNo: params.trade_no || params.api_trade_no,
+          amount: params.money,
+          type: params.type
+        }
+        toast.success('支付成功！')
       }
-      
-      toast.success('支付成功！')
       
       // 延迟3秒后自动跳转到订单页面
       setTimeout(() => {
