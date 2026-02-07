@@ -335,11 +335,11 @@ func (h *PaymentHandler) CreateAlipayPayment(c *gin.Context) {
 
 	// 构建响应，根据返回的字段类型返回支付信息
 	response := gin.H{
-		"trade_no":       result.TradeNo,
-		"order_id":       order.ID,
-		"amount":         order.Amount,        // 原始金额
-		"currency":       order.Currency,      // 原始货币
-		"payment_amount": paymentAmount,       // CNY 支付金额
+		"trade_no":         result.TradeNo,
+		"order_id":         order.ID,
+		"amount":           order.Amount,   // 原始金额
+		"currency":         order.Currency, // 原始货币
+		"payment_amount":   paymentAmount,  // CNY 支付金额
 		"payment_currency": "CNY",
 	}
 
@@ -2010,7 +2010,7 @@ func (h *AdminHandler) GetExchangeRates(c *gin.Context) {
 // UpdateExchangeRates 手动触发更新汇率
 func (h *AdminHandler) UpdateExchangeRates(c *gin.Context) {
 	exchangeRateSvc := services.NewExchangeRateService(h.db, h.config)
-	
+
 	if err := exchangeRateSvc.UpdateExchangeRates(); err != nil {
 		log.Printf("❌ Failed to update exchange rates: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to update exchange rates: %v", err)})

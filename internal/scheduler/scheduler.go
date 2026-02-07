@@ -285,10 +285,11 @@ func (s *Scheduler) AggregateStatistics() {
 		stat.ID = existingStat.ID
 		if err := s.db.Save(&stat).Error; err != nil {
 			log.Printf("Error updating statistics: %v", err)
+			return
 		}
 	}
 
-	log.Println("✅ Daily statistics aggregation completed")
+	log.Printf("Successfully aggregated statistics for %s", startOfDay.Format("2006-01-02"))
 }
 
 // UpdateExchangeRates 更新汇率
@@ -296,11 +297,4 @@ func (s *Scheduler) UpdateExchangeRates() {
 	if err := s.exchangeRateSvc.UpdateExchangeRates(); err != nil {
 		log.Printf("❌ Failed to update exchange rates: %v", err)
 	}
-} {
-			log.Printf("Error updating statistics: %v", err)
-			return
-		}
-	}
-
-	log.Printf("Successfully aggregated statistics for %s", startOfDay.Format("2006-01-02"))
 }
