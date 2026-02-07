@@ -1,30 +1,34 @@
 <template>
-  <div class="container mx-auto px-4 py-8">
+  <div class="bg-base-200/30">
     <div v-if="loading" class="flex justify-center py-16">
       <span class="loading loading-spinner loading-lg"></span>
     </div>
     
-    <div v-else-if="plugin" class="max-w-5xl mx-auto">
-      <!-- Header -->
-      <div class="mb-8">
-        <button @click="$router.push('/plugins')" class="btn btn-ghost btn-sm mb-4">
-          ← {{ $t('pluginDetail.backToList') }}
-        </button>
-        <h1 class="text-4xl font-bold mb-3">{{ plugin.name }}</h1>
-        <p class="text-xl text-base-content/70 mb-4">{{ plugin.description }}</p>
-        
-        <!-- Tags/Badges -->
-        <div class="flex gap-2 flex-wrap">
-          <span v-if="plugin.category" class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-primary/10 text-primary">{{ plugin.category }}</span>
-          <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">v{{ plugin.version || '1.0.0' }}</span>
+    <div v-else-if="plugin">
+      <!-- Header Section -->
+      <div class="bg-gradient-to-br from-primary/5 via-base-100 to-secondary/5 border-b border-base-300">
+        <div class="container mx-auto px-4 py-8">
+          <button @click="$router.push('/plugins')" class="btn btn-ghost btn-sm mb-4">
+            ← {{ $t('pluginDetail.backToList') }}
+          </button>
+          <h1 class="text-4xl font-bold mb-3">{{ plugin.name }}</h1>
+          <p class="text-xl text-base-content/70 mb-4">{{ plugin.description }}</p>
+          
+          <!-- Tags/Badges -->
+          <div class="flex gap-2 flex-wrap">
+            <span v-if="plugin.category" class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-primary/10 text-primary">{{ plugin.category }}</span>
+            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">v{{ plugin.version || '1.0.0' }}</span>
+          </div>
         </div>
       </div>
 
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <!-- Main Content (Left) -->
-        <div class="lg:col-span-2 space-y-6">
-          <!-- Long Description -->
-          <div v-if="plugin.long_description" class="card bg-base-100 shadow-xl">
+      <!-- Main Content -->
+      <div class="container mx-auto px-4 py-8">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <!-- Main Content (Left) -->
+          <div class="lg:col-span-2 space-y-6">
+            <!-- Long Description -->
+            <div v-if="plugin.long_description" class="card bg-base-100 shadow-xl">
             <div class="card-body">
               <h2 class="card-title text-2xl mb-4">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -35,39 +39,12 @@
               <MdPreview :modelValue="plugin.long_description" class="!bg-transparent" />
             </div>
           </div>
-
-          <!-- Installation Instructions -->
-          <div class="card bg-base-100 shadow-xl">
-            <div class="card-body">
-              <h2 class="card-title text-2xl mb-4">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-                {{ $t('pluginDetail.installation') }}
-              </h2>
-              <div class="space-y-4">
-                <div class="alert alert-info">
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                  </svg>
-                  <span>{{ $t('pluginDetail.installationNote') }}</span>
-                </div>
-                
-                <div class="steps steps-vertical lg:steps-horizontal">
-                  <div class="step step-primary">{{ $t('pluginDetail.step1') }}</div>
-                  <div class="step step-primary">{{ $t('pluginDetail.step2') }}</div>
-                  <div class="step step-primary">{{ $t('pluginDetail.step3') }}</div>
-                </div>
-              </div>
-            </div>
-          </div>
-
         </div>
 
         <!-- Sidebar (Right) -->
         <div class="lg:col-span-1">
           <!-- Purchase Card -->
-          <div class="card bg-base-100 shadow-xl sticky top-4">
+          <div class="card bg-base-100 shadow-xl sticky top-20">
             <div class="card-body">
               <div class="text-center mb-4">
                 <div class="text-4xl font-bold text-primary">${{ plugin.price }}</div>
@@ -122,8 +99,9 @@
         </div>
       </div>
     </div>
+    </div>
     
-    <div v-else class="text-center py-16">
+    <div v-else class="container mx-auto px-4 py-16 text-center">
       <p class="text-lg">{{ $t('plugin.notFound') }}</p>
     </div>
   </div>

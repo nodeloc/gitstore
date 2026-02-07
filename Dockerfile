@@ -21,13 +21,16 @@ FROM alpine:latest
 
 RUN apk --no-cache add ca-certificates tzdata
 
-WORKDIR /root/
+WORKDIR /app
 
 # Copy binary from builder
 COPY --from=builder /app/main .
 
 # Copy migrations
 COPY --from=builder /app/migrations ./migrations
+
+# Create directories for logs and uploads
+RUN mkdir -p /app/logs /app/uploads
 
 # Expose port
 EXPOSE 8080

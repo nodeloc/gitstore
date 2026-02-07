@@ -1,5 +1,5 @@
 <template>
-  <div class="min-h-screen bg-base-200/30">
+  <div class="bg-base-200/30">
     <!-- Header Section with Search -->
     <div class="bg-gradient-to-br from-primary/5 via-base-100 to-secondary/5 border-b border-base-300">
       <div class="container mx-auto px-4 py-8">

@@ -1,5 +1,5 @@
 <template>
-  <div class="min-h-screen bg-base-200 py-8">
+  <div class="bg-base-200 py-8">
   <div class="container mx-auto px-4">
     <div class="max-w-4xl mx-auto">
       <div class="mb-6">

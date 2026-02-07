@@ -25,6 +25,16 @@
     "learnMore": "了解更多",
     "features": "为什么选择我们？",
     "featuresSubtitle": "提供您所需的工具和基础设施，安全可靠地扩展您的在线业务",
+    "forumValueTitle": "为您的论坛解锁更多可能",
+    "forumValueSubtitle": "专业的插件让您的 Discourse 和 Flarum 论坛更强大、更易用、更具吸引力",
+    "enhanceFeatures": "增强论坛功能",
+    "enhanceFeaturesDesc": "获得经过实战验证的专业插件，为您的论坛添加强大的新功能，无需自己开发，节省数周开发时间和成本",
+    "improveExperience": "提升用户体验",
+    "improveExperienceDesc": "为用户提供更流畅、更直观的交互体验，提高用户满意度和留存率，让您的社区更受欢迎",
+    "increaseEngagement": "提高活跃度",
+    "increaseEngagementDesc": "通过丰富的互动功能激发用户参与热情，增加日活跃用户数和内容产出，打造繁荣的社区生态",
+    "professionalSupport": "专业技术支持",
+    "professionalSupportDesc": "获得开发者的专业支持和定期更新，确保插件始终兼容最新版本，让您安心运营无后顾之忧",
     "feature1Title": "安全可靠",
     "feature1Description": "您的账户受到安全认证保护，包括可选的2FA支持，确保数据安全。",
     "feature2Title": "闪电般快速",
@@ -34,13 +44,13 @@
     "stats": {
       "plugins": "可用插件",
       "users": "活跃用户",
-      "uptime": "系统可用性",
+      "engagement": "活跃度提升",
       "support": "技术支持"
     },
     "cta": {
       "title": "准备开始您的旅程？",
       "subtitle": "立即注册，在几秒钟内获取您的插件，开始构建您的在线业务",
-      "button": "免费开始"
+      "button": "浏览插件商店"
     }
   },
   "features": {
@@ -477,7 +487,7 @@
   },
   "footer": {
     "poweredBy": "基于GitHub App授权驱动",
-    "copyright": "版权所有 © 2024 - 保留所有权利",
+    "copyright": "版权所有 © 2026 - 保留所有权利.",
     "links": "链接",
     "about": "关于我们",
     "contact": "联系我们",

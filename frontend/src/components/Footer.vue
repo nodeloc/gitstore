@@ -19,7 +19,7 @@
           Powered by 
           <a href="https://github.com/nodeloc/gitstore" target="_blank" class="link link-hover text-primary">GitStore</a>
           from 
-          <a href="https://www.nodeloc.com" target="_blank" class="link link-hover text-primary">Nodeloc</a>
+          <a href="https://www.nodeloc.com" target="_blank" class="link link-hover text-primary">Nodeloc</a>.
         </p>
       </div>
     </div>

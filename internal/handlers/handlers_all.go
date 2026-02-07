@@ -204,6 +204,15 @@ func (h *PaymentHandler) CreateStripePaymentIntent(c *gin.Context) {
 		return
 	}
 
+	// Check if Stripe is properly configured
+	if h.config.StripeSecretKey == "" || h.config.StripeSecretKey == "sk_test_your_stripe_secret_key" {
+		log.Printf("Stripe is not configured properly. Please set STRIPE_SECRET_KEY in .env file")
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"error": "Payment service is not configured. Please contact administrator.",
+		})
+		return
+	}
+
 	// Create Stripe payment intent
 	amountCents := int64(order.Amount * 100) // Convert to cents
 	paymentReq := &services.PaymentIntentRequest{
@@ -220,7 +229,10 @@ func (h *PaymentHandler) CreateStripePaymentIntent(c *gin.Context) {
 	paymentIntent, err := h.stripeService.CreatePaymentIntent(paymentReq)
 	if err != nil {
 		log.Printf("Failed to create Stripe payment intent: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create payment"})
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to create payment",
+			"details": "Unable to initialize payment. Please try again or contact support.",
+		})
 		return
 	}
 

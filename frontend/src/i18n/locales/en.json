@@ -27,6 +27,16 @@
     "learnMore": "Learn More",
     "features": "Why choose us?",
     "featuresSubtitle": "We provide the tools and infrastructure you need to scale your online presence securely and reliably",
+    "forumValueTitle": "Unlock More Possibilities for Your Forum",
+    "forumValueSubtitle": "Professional plugins make your Discourse and Flarum forums more powerful, user-friendly, and engaging",
+    "enhanceFeatures": "Enhanced Forum Features",
+    "enhanceFeaturesDesc": "Get battle-tested professional plugins that add powerful new features to your forum, saving weeks of development time and costs without building from scratch",
+    "improveExperience": "Better User Experience",
+    "improveExperienceDesc": "Provide users with smoother, more intuitive interactions, increasing user satisfaction and retention to make your community more popular",
+    "increaseEngagement": "Increase Engagement",
+    "increaseEngagementDesc": "Spark user participation through rich interactive features, boost daily active users and content output, building a thriving community ecosystem",
+    "professionalSupport": "Professional Support",
+    "professionalSupportDesc": "Get professional support and regular updates from developers, ensuring plugins stay compatible with the latest versions for worry-free operations",
     "feature1Title": "Account Security",
     "feature1Description": "Your account is protected with secure authentication including optional 2FA support.",
     "feature2Title": "Lightning Fast",
@@ -36,13 +46,13 @@
     "stats": {
       "plugins": "Available Plugins",
       "users": "Active Users",
-      "uptime": "System Uptime",
+      "engagement": "Engagement Boost",
       "support": "Support"
     },
     "cta": {
       "title": "Ready to start your journey?",
       "subtitle": "Register your account in seconds and start building your online presence",
-      "button": "Get Started for Free"
+      "button": "Browse Plugin Store"
     }
   },
   "features": {
@@ -479,7 +489,7 @@
   },
   "footer": {
     "poweredBy": "Powered by GitHub App Authorization",
-    "copyright": "Copyright © 2024 - All right reserved",
+    "copyright": "Copyright © 2026 - All right reserved.",
     "links": "Links",
     "about": "About",
     "contact": "Contact",
