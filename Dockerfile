@@ -12,12 +12,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 ENV GOPROXY=https://goproxy.cn,direct
 ENV GOSUMDB=sum.golang.google.cn
+ENV GO111MODULE=on
 
 COPY go.mod go.sum ./
-RUN go mod download
+RUN go mod download || true
 
 COPY . .
 
+RUN go mod tidy || true
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o app .
 
 # =====================
