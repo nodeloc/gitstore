@@ -39,27 +39,20 @@ echo ""
 echo "2️⃣  更新代码..."
 git pull origin main || echo "跳过 git pull"
 
-# 3. 构建前端
+# 3. 启动所有服务（Docker 内构建）
 echo ""
-echo "3️⃣  构建前端..."
-cd $PROJECT_DIR/frontend
-npm install
-npm run build
-
-# 4. 启动所有服务
-echo ""
-echo "4️⃣  启动所有服务..."
+echo "3️⃣  构建并启动所有服务..."
 cd $PROJECT_DIR
 docker compose -f docker-compose.prod.yml up -d --build
 
-# 5. 等待服务启动
+# 4. 等待服务启动
 echo ""
-echo "5️⃣  等待服务启动..."
+echo "4️⃣  等待服务启动..."
 sleep 15
 
-# 6. 健康检查
+# 5. 健康检查
 echo ""
-echo "6️⃣  健康检查..."
+echo "5️⃣  健康检查..."
 for i in {1..30}; do
     if docker exec gitstore-backend wget --quiet --tries=1 --spider http://localhost:8080/api/health 2>/dev/null; then
         echo "   ✅ 后端服务启动成功"
@@ -69,7 +62,7 @@ for i in {1..30}; do
     sleep 2
 done
 
-# 7. 显示状态和配置说明
+# 6. 显示状态和配置说明
 echo ""
 echo "✅ 部署完成!"
 echo ""

@@ -1,39 +1,38 @@
-# Build stage
-FROM golang:1.21-alpine AS builder
+# =====================
+# 1️⃣ 构建阶段（Go）
+# =====================
+FROM golang:1.22-bookworm AS builder
 
 WORKDIR /app
 
-# Install build dependencies
-RUN apk add --no-cache git
+RUN apt update && apt install -y git ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy go mod files
+ENV GOPROXY=https://goproxy.cn,direct
+ENV GOSUMDB=sum.golang.google.cn
+
 COPY go.mod go.sum ./
 RUN go mod download
 
-# Copy source code
 COPY . .
 
-# Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main .
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o app .
 
-# Runtime stage
-FROM alpine:latest
-
-RUN apk --no-cache add ca-certificates tzdata
+# =====================
+# 2️⃣ 运行阶段（Debian）
+# =====================
+FROM debian:12-slim
 
 WORKDIR /app
 
-# Copy binary from builder
-COPY --from=builder /app/main .
+RUN apt update && apt install -y ca-certificates wget \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy migrations
-COPY --from=builder /app/migrations ./migrations
+COPY --from=builder /app/app /app/app
+COPY --from=builder /app/migrations /app/migrations
 
-# Create directories for logs and uploads
 RUN mkdir -p /app/logs /app/uploads
 
-# Expose port
 EXPOSE 8080
 
-# Run the application
-CMD ["./main"]
+CMD ["/app/app"]
