@@ -116,6 +116,19 @@ func (h *AuthHandler) GitHubCallback(c *gin.Context) {
 	} else if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
 		return
+	} else {
+		// User exists, check and update admin role if needed
+		shouldBeAdmin := primaryEmail == h.config.AdminEmail ||
+			(h.config.AdminGitHubID != "" && h.config.AdminGitHubID == fmt.Sprintf("%d", githubUser.GetID()))
+		
+		if shouldBeAdmin && user.Role != "admin" {
+			user.Role = "admin"
+			h.db.Save(&user)
+		} else if !shouldBeAdmin && user.Role == "admin" {
+			// Optional: remove admin role if no longer in config
+			// user.Role = "user"
+			// h.db.Save(&user)
+		}
 	}
 
 	// Create or update GitHub account
