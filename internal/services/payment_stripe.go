@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/nodeloc/git-store/internal/config"
 	"github.com/stripe/stripe-go/v76"
 	"github.com/stripe/stripe-go/v76/paymentintent"
 	"github.com/stripe/stripe-go/v76/webhook"
 	"github.com/stripe/stripe-go/v76/webhookendpoint"
-	"github.com/nodeloc/git-store/internal/config"
 )
 
 type StripeService struct {
@@ -30,11 +30,11 @@ func (s *StripeService) SetupWebhook() error {
 	}
 
 	webhookURL := s.config.AppURL + "/api/webhooks/stripe"
-	
+
 	// 检查是否已存在相同URL的Webhook
 	params := &stripe.WebhookEndpointListParams{}
 	iter := webhookendpoint.List(params)
-	
+
 	for iter.Next() {
 		we := iter.WebhookEndpoint()
 		if we.URL == webhookURL {
@@ -42,12 +42,12 @@ func (s *StripeService) SetupWebhook() error {
 			return nil
 		}
 	}
-	
+
 	if err := iter.Err(); err != nil {
 		log.Printf("[Stripe] Failed to list webhook endpoints: %v", err)
 		return err
 	}
-	
+
 	// 创建新的Webhook端点
 	createParams := &stripe.WebhookEndpointParams{
 		URL: stripe.String(webhookURL),
@@ -55,29 +55,28 @@ func (s *StripeService) SetupWebhook() error {
 			"payment_intent.succeeded",
 			"payment_intent.payment_failed",
 		}),
-		APIVersion: stripe.String("2023-10-16"),
+		APIVersion:  stripe.String("2023-10-16"),
 		Description: stripe.String("Auto-created by gitstore"),
 	}
-	
+
 	endpoint, err := webhookendpoint.New(createParams)
 	if err != nil {
 		log.Printf("[Stripe] Failed to create webhook endpoint: %v", err)
 		return err
 	}
-	
+
 	log.Printf("[Stripe] ✅ Created webhook endpoint:")
 	log.Printf("[Stripe]   - URL: %s", endpoint.URL)
 	log.Printf("[Stripe]   - ID: %s", endpoint.ID)
 	log.Printf("[Stripe]   - Secret: %s", endpoint.Secret)
 	log.Printf("[Stripe]   ⚠️  Please update STRIPE_WEBHOOK_SECRET in .env with the secret above")
-	
+
 	return nil
 }
 
-
 type PaymentIntentRequest struct {
-	Amount      int64             // Amount in cents
-	Currency    string            // e.g., "usd"
+	Amount      int64  // Amount in cents
+	Currency    string // e.g., "usd"
 	Description string
 	Metadata    map[string]string
 }

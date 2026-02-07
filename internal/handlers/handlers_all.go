@@ -125,7 +125,7 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 		// License exists, check if it's still valid
 		if existingLicense.Status == "active" && time.Now().Before(existingLicense.MaintenanceUntil) {
 			c.JSON(http.StatusConflict, gin.H{
-				"error": "You already own this plugin",
+				"error":      "You already own this plugin",
 				"license_id": existingLicense.ID,
 				"expires_at": existingLicense.MaintenanceUntil,
 			})
@@ -133,9 +133,9 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 		} else if existingLicense.Status == "active" && time.Now().After(existingLicense.MaintenanceUntil) {
 			// License expired, suggest renewal
 			c.JSON(http.StatusConflict, gin.H{
-				"error": "Your license has expired. Please use the renewal option instead",
-				"license_id": existingLicense.ID,
-				"expired_at": existingLicense.MaintenanceUntil,
+				"error":        "Your license has expired. Please use the renewal option instead",
+				"license_id":   existingLicense.ID,
+				"expired_at":   existingLicense.MaintenanceUntil,
 				"should_renew": true,
 			})
 			return

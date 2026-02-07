@@ -6,12 +6,12 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
-	"github.com/robfig/cron/v3"
 	"github.com/nodeloc/git-store/internal/config"
 	"github.com/nodeloc/git-store/internal/database"
 	"github.com/nodeloc/git-store/internal/router"
 	"github.com/nodeloc/git-store/internal/scheduler"
 	"github.com/nodeloc/git-store/internal/services"
+	"github.com/robfig/cron/v3"
 )
 
 func main() {
