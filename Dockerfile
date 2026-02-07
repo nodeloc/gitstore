@@ -5,7 +5,9 @@ FROM golang:1.22-bookworm AS builder
 
 WORKDIR /app
 
-RUN apt update && apt install -y git ca-certificates \
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 ENV GOPROXY=https://goproxy.cn,direct
@@ -25,7 +27,9 @@ FROM debian:12-slim
 
 WORKDIR /app
 
-RUN apt update && apt install -y ca-certificates wget \
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    wget \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /app/app /app/app
