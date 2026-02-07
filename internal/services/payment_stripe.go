@@ -55,6 +55,7 @@ func (s *StripeService) SetupWebhook() error {
 			"payment_intent.succeeded",
 			"payment_intent.payment_failed",
 		}),
+		APIVersion: stripe.String("2023-10-16"),
 		Description: stripe.String("Auto-created by gitstore"),
 	}
 	
@@ -129,7 +130,14 @@ func (s *StripeService) CancelPaymentIntent(paymentIntentID string) (*stripe.Pay
 }
 
 func (s *StripeService) VerifyWebhookSignature(payload []byte, signature string) (stripe.Event, error) {
-	event, err := webhook.ConstructEvent(payload, signature, s.config.StripeWebhookSecret)
+	event, err := webhook.ConstructEventWithOptions(
+		payload,
+		signature,
+		s.config.StripeWebhookSecret,
+		webhook.ConstructEventOptions{
+			IgnoreAPIVersionMismatch: true,
+		},
+	)
 	if err != nil {
 		return event, fmt.Errorf("failed to verify webhook signature: %w", err)
 	}
