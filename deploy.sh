@@ -50,9 +50,14 @@ echo ""
 echo "4️⃣  等待服务启动..."
 sleep 15
 
-# 5. 健康检查
+# 5. 执行数据库迁移
 echo ""
-echo "5️⃣  健康检查..."
+echo "5️⃣  执行数据库迁移..."
+./run-migrations.sh
+
+# 6. 健康检查
+echo ""
+echo "6️⃣  健康检查..."
 for i in {1..30}; do
     if docker exec gitstore-backend wget --quiet --tries=1 --spider http://localhost:8080/api/health 2>/dev/null; then
         echo "   ✅ 后端服务启动成功"
@@ -62,7 +67,7 @@ for i in {1..30}; do
     sleep 2
 done
 
-# 6. 显示状态和配置说明
+# 7. 显示状态和配置说明
 echo ""
 echo "✅ 部署完成!"
 echo ""
