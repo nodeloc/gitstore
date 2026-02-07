@@ -118,6 +118,31 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 		return
 	}
 
+	// Check if user already has a license for this plugin
+	var existingLicense models.License
+	err = h.db.Where("user_id = ? AND plugin_id = ?", userID.(uuid.UUID), pluginUUID).First(&existingLicense).Error
+	if err == nil {
+		// License exists, check if it's still valid
+		if existingLicense.Status == "active" && time.Now().Before(existingLicense.MaintenanceUntil) {
+			c.JSON(http.StatusConflict, gin.H{
+				"error": "You already own this plugin",
+				"license_id": existingLicense.ID,
+				"expires_at": existingLicense.MaintenanceUntil,
+			})
+			return
+		} else if existingLicense.Status == "active" && time.Now().After(existingLicense.MaintenanceUntil) {
+			// License expired, suggest renewal
+			c.JSON(http.StatusConflict, gin.H{
+				"error": "Your license has expired. Please use the renewal option instead",
+				"license_id": existingLicense.ID,
+				"expired_at": existingLicense.MaintenanceUntil,
+				"should_renew": true,
+			})
+			return
+		}
+		// If license is revoked or other status, allow new purchase
+	}
+
 	order := models.Order{
 		OrderNumber:   fmt.Sprintf("ORD-%d", time.Now().UnixNano()),
 		UserID:        userID.(uuid.UUID),
@@ -477,21 +502,42 @@ func (h *PaymentHandler) StripeWebhook(c *gin.Context) {
 		}
 		maintenanceUntil := time.Now().AddDate(0, maintenanceMonths, 0)
 
-		// Create license
+		// Create or update license (use FirstOrCreate to handle duplicates)
 		license := models.License{
-			OrderID:          order.ID,
-			UserID:           order.UserID,
-			PluginID:         order.PluginID,
-			GitHubAccountID:  githubAccount.ID,
-			LicenseType:      "permanent",
-			Status:           "active",
-			MaintenanceUntil: maintenanceUntil,
+			UserID:   order.UserID,
+			PluginID: order.PluginID,
 		}
 
-		if err := h.db.Create(&license).Error; err != nil {
-			log.Printf("Failed to create license: %v", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create license"})
-			return
+		// Try to find existing license first
+		var existingLicense models.License
+		err = h.db.Where("user_id = ? AND plugin_id = ?", order.UserID, order.PluginID).First(&existingLicense).Error
+		if err == nil {
+			// License exists, update it
+			existingLicense.OrderID = order.ID
+			existingLicense.GitHubAccountID = githubAccount.ID
+			existingLicense.LicenseType = "permanent"
+			existingLicense.Status = "active"
+			existingLicense.MaintenanceUntil = maintenanceUntil
+			if err := h.db.Save(&existingLicense).Error; err != nil {
+				log.Printf("Failed to update license: %v", err)
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update license"})
+				return
+			}
+			log.Printf("Successfully updated existing license: %s", existingLicense.ID)
+		} else {
+			// License doesn't exist, create new one
+			license.OrderID = order.ID
+			license.GitHubAccountID = githubAccount.ID
+			license.LicenseType = "permanent"
+			license.Status = "active"
+			license.MaintenanceUntil = maintenanceUntil
+
+			if err := h.db.Create(&license).Error; err != nil {
+				log.Printf("Failed to create license: %v", err)
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create license"})
+				return
+			}
+			log.Printf("Successfully created new license: %s", license.ID)
 		}
 
 		log.Printf("Successfully processed Stripe payment for order: %s", orderIDStr)
@@ -626,25 +672,43 @@ func (h *PaymentHandler) AlipayNotify(c *gin.Context) {
 		if maintenanceMonths == 0 {
 			maintenanceMonths = 12
 		}
+		maintenanceUntil := utils.CalculateMaintenanceUntil(maintenanceMonths)
 
-		// 生成许可证
-		license := models.License{
-			UserID:           order.UserID,
-			PluginID:         order.PluginID,
-			OrderID:          order.ID,
-			GitHubAccountID:  githubAccount.ID,
-			LicenseType:      "permanent",
-			MaintenanceUntil: utils.CalculateMaintenanceUntil(maintenanceMonths),
-			Status:           "active",
+		// Create or update license (handle duplicates)
+		var existingLicense models.License
+		err = h.db.Where("user_id = ? AND plugin_id = ?", order.UserID, order.PluginID).First(&existingLicense).Error
+		if err == nil {
+			// License exists, update it
+			existingLicense.OrderID = order.ID
+			existingLicense.GitHubAccountID = githubAccount.ID
+			existingLicense.LicenseType = "permanent"
+			existingLicense.Status = "active"
+			existingLicense.MaintenanceUntil = maintenanceUntil
+			if err := h.db.Save(&existingLicense).Error; err != nil {
+				log.Printf("❌ Failed to update license: %v", err)
+				c.String(http.StatusInternalServerError, "fail")
+				return
+			}
+			log.Printf("✅ License updated successfully for order: %s", outTradeNo)
+		} else {
+			// License doesn't exist, create new one
+			license := models.License{
+				UserID:           order.UserID,
+				PluginID:         order.PluginID,
+				OrderID:          order.ID,
+				GitHubAccountID:  githubAccount.ID,
+				LicenseType:      "permanent",
+				MaintenanceUntil: maintenanceUntil,
+				Status:           "active",
+			}
+
+			if err := h.db.Create(&license).Error; err != nil {
+				log.Printf("❌ Failed to create license: %v", err)
+				c.String(http.StatusInternalServerError, "fail")
+				return
+			}
+			log.Printf("🎉 License created successfully for order: %s", outTradeNo)
 		}
-
-		if err := h.db.Create(&license).Error; err != nil {
-			log.Printf("❌ Failed to create license: %v", err)
-			c.String(http.StatusInternalServerError, "fail")
-			return
-		}
-
-		log.Printf("🎉 License created successfully for order: %s", outTradeNo)
 		log.Printf("✅ Payment successful - Order: %s, TradeNo: %s", outTradeNo, tradeNo)
 		c.String(http.StatusOK, "success")
 		return

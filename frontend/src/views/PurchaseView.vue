@@ -224,7 +224,29 @@ const processPurchase = async () => {
     }
   } catch (err) {
     console.error('Purchase failed:', err)
-    error.value = err.response?.data?.error || err.message || 'Purchase failed. Please try again.'
+    
+    // Handle specific error cases
+    if (err.response?.status === 409) {
+      const errorData = err.response.data
+      if (errorData.should_renew) {
+        // License expired, redirect to renewal page
+        error.value = errorData.error || 'Your license has expired. Please use the renewal option.'
+        // Optionally redirect to license renewal
+        setTimeout(() => {
+          router.push(`/licenses/${errorData.license_id}`)
+        }, 3000)
+      } else {
+        // Already owns the plugin
+        error.value = errorData.error || 'You already own this plugin.'
+        // Optionally redirect to licenses page
+        setTimeout(() => {
+          router.push('/licenses')
+        }, 2000)
+      }
+    } else {
+      error.value = err.response?.data?.error || err.message || 'Purchase failed. Please try again.'
+    }
+    
     processing.value = false
   }
 }
