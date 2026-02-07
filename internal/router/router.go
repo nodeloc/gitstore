@@ -242,6 +242,13 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, cfg *config.Config) {
 			adminSettings.PUT("", adminHandler.UpdateSettings)
 		}
 
+		// Exchange rates management
+		adminExchangeRates := admin.Group("/exchange-rates")
+		{
+			adminExchangeRates.GET("", adminHandler.GetExchangeRates)
+			adminExchangeRates.POST("/update", adminHandler.UpdateExchangeRates)
+		}
+
 		// User management
 		adminUsers := admin.Group("/users")
 		{

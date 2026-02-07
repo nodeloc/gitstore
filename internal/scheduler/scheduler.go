@@ -14,10 +14,11 @@ import (
 )
 
 type Scheduler struct {
-	db        *gorm.DB
-	config    *config.Config
-	githubSvc *services.GitHubService
-	emailSvc  *services.EmailService
+	db              *gorm.DB
+	config          *config.Config
+	githubSvc       *services.GitHubService
+	emailSvc        *services.EmailService
+	exchangeRateSvc *services.ExchangeRateService
 }
 
 // Helper function to split "owner/repo" format
@@ -27,9 +28,10 @@ func splitRepoName(repoName string) []string {
 
 func SetupScheduler(c *cron.Cron, db *gorm.DB, cfg *config.Config) {
 	scheduler := &Scheduler{
-		db:       db,
-		config:   cfg,
-		emailSvc: services.NewEmailService(cfg, db),
+		db:              db,
+		config:          cfg,
+		emailSvc:        services.NewEmailService(cfg, db),
+		exchangeRateSvc: services.NewExchangeRateService(db, cfg),
 	}
 
 	// Initialize GitHub Service
@@ -50,6 +52,12 @@ func SetupScheduler(c *cron.Cron, db *gorm.DB, cfg *config.Config) {
 	c.AddFunc("0 1 * * *", func() {
 		log.Println("Running daily statistics aggregation...")
 		scheduler.AggregateStatistics()
+	})
+
+	// Schedule daily exchange rate update (daily at 3 AM)
+	c.AddFunc("0 3 * * *", func() {
+		log.Println("Running daily exchange rate update...")
+		scheduler.UpdateExchangeRates()
 	})
 
 	log.Println("Scheduler initialized")
@@ -276,6 +284,19 @@ func (s *Scheduler) AggregateStatistics() {
 		// Update existing statistic
 		stat.ID = existingStat.ID
 		if err := s.db.Save(&stat).Error; err != nil {
+			log.Printf("Error updating statistics: %v", err)
+		}
+	}
+
+	log.Println("✅ Daily statistics aggregation completed")
+}
+
+// UpdateExchangeRates 更新汇率
+func (s *Scheduler) UpdateExchangeRates() {
+	if err := s.exchangeRateSvc.UpdateExchangeRates(); err != nil {
+		log.Printf("❌ Failed to update exchange rates: %v", err)
+	}
+} {
 			log.Printf("Error updating statistics: %v", err)
 			return
 		}

@@ -291,9 +291,18 @@
     "total": "总计",
     "processing": "处理支付中...",
     "success": "支付成功!",
-    "failed": "支付失败,请重试。",
+    "failed": "支付失败",
     "cancel": "取消",
-    "payNow": "立即支付"
+    "payNow": "立即支付",
+    "verifying": "验证支付状态中...",
+    "pleaseWait": "请稍候，正在确认您的支付",
+    "successMessage": "您的支付已成功完成，订单已生成",
+    "errorMessage": "支付验证失败，请联系客服",
+    "orderId": "订单号",
+    "tradeNo": "交易号",
+    "amount": "金额",
+    "viewOrders": "查看订单",
+    "backToHome": "返回首页"
   },
   "purchase": {
     "title": "完成购买",

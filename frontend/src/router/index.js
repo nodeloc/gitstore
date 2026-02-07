@@ -57,6 +57,11 @@ const router = createRouter({
       meta: { requiresAuth: true }
     },
     {
+      path: '/payment/success',
+      name: 'payment-success',
+      component: () => import('@/views/PaymentSuccessView.vue')
+    },
+    {
       path: '/admin',
       name: 'admin',
       component: () => import('@/views/admin/AdminDashboard.vue'),

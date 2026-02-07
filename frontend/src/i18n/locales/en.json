@@ -293,9 +293,18 @@
     "total": "Total",
     "processing": "Processing payment...",
     "success": "Payment successful!",
-    "failed": "Payment failed. Please try again.",
+    "failed": "Payment failed",
     "cancel": "Cancel",
-    "payNow": "Pay Now"
+    "payNow": "Pay Now",
+    "verifying": "Verifying payment...",
+    "pleaseWait": "Please wait while we confirm your payment",
+    "successMessage": "Your payment has been completed successfully and order has been created",
+    "errorMessage": "Payment verification failed, please contact support",
+    "orderId": "Order ID",
+    "tradeNo": "Transaction No",
+    "amount": "Amount",
+    "viewOrders": "View Orders",
+    "backToHome": "Back to Home"
   },
   "purchase": {
     "title": "Complete Purchase",

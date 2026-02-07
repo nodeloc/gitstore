@@ -292,6 +292,23 @@ func (h *PaymentHandler) CreateAlipayPayment(c *gin.Context) {
 		return
 	}
 
+	// 货币转换：如果订单货币不是 CNY，需要转换
+	paymentAmount := order.Amount
+	if order.Currency != "CNY" {
+		// 使用汇率服务转换金额
+		exchangeRateSvc := services.NewExchangeRateService(h.db, h.config)
+		convertedAmount, err := exchangeRateSvc.ConvertAmount(order.Amount, order.Currency, "CNY")
+		if err != nil {
+			log.Printf("❌ 货币转换失败 %s -> CNY: %v", order.Currency, err)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": fmt.Sprintf("Currency conversion failed: %s to CNY", order.Currency),
+			})
+			return
+		}
+		paymentAmount = convertedAmount
+		log.Printf("💱 货币转换: %.2f %s = %.2f CNY", order.Amount, order.Currency, paymentAmount)
+	}
+
 	// 获取客户端IP
 	clientIP := c.ClientIP()
 	if clientIP == "" || clientIP == "::1" {
@@ -301,7 +318,7 @@ func (h *PaymentHandler) CreateAlipayPayment(c *gin.Context) {
 	// 创建易支付订单
 	paymentReq := &services.AlipayTradeRequest{
 		OutTradeNo:  order.ID.String(),
-		TotalAmount: order.Amount,
+		TotalAmount: paymentAmount, // 使用转换后的 CNY 金额
 		Subject:     fmt.Sprintf("%s - License", order.Plugin.Name),
 		Body:        fmt.Sprintf("Order ID: %s", order.ID.String()),
 		NotifyURL:   h.config.AppURL + "/api/webhooks/alipay",
@@ -318,9 +335,12 @@ func (h *PaymentHandler) CreateAlipayPayment(c *gin.Context) {
 
 	// 构建响应，根据返回的字段类型返回支付信息
 	response := gin.H{
-		"trade_no": result.TradeNo,
-		"order_id": order.ID,
-		"amount":   order.Amount,
+		"trade_no":       result.TradeNo,
+		"order_id":       order.ID,
+		"amount":         order.Amount,        // 原始金额
+		"currency":       order.Currency,      // 原始货币
+		"payment_amount": paymentAmount,       // CNY 支付金额
+		"payment_currency": "CNY",
 	}
 
 	// 优先使用 PayInfo 字段（易支付实际返回的字段）
@@ -1969,4 +1989,44 @@ func (h *DashboardHandler) GetPluginStats(c *gin.Context) {
 		Scan(&results)
 
 	c.JSON(http.StatusOK, gin.H{"plugins": results})
+}
+
+// ==================== Exchange Rate Management ====================
+
+// GetExchangeRates 获取所有汇率
+func (h *AdminHandler) GetExchangeRates(c *gin.Context) {
+	var rates []models.ExchangeRate
+	if err := h.db.Order("from_currency ASC, to_currency ASC").Find(&rates).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch exchange rates"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"rates": rates,
+		"count": len(rates),
+	})
+}
+
+// UpdateExchangeRates 手动触发更新汇率
+func (h *AdminHandler) UpdateExchangeRates(c *gin.Context) {
+	exchangeRateSvc := services.NewExchangeRateService(h.db, h.config)
+	
+	if err := exchangeRateSvc.UpdateExchangeRates(); err != nil {
+		log.Printf("❌ Failed to update exchange rates: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to update exchange rates: %v", err)})
+		return
+	}
+
+	// 返回更新后的汇率
+	var rates []models.ExchangeRate
+	if err := h.db.Order("from_currency ASC, to_currency ASC").Find(&rates).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch updated rates"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Exchange rates updated successfully",
+		"rates":   rates,
+		"count":   len(rates),
+	})
 }

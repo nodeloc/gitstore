@@ -120,7 +120,7 @@ func (h *AuthHandler) GitHubCallback(c *gin.Context) {
 		// User exists, check and update admin role if needed
 		shouldBeAdmin := primaryEmail == h.config.AdminEmail ||
 			(h.config.AdminGitHubID != "" && h.config.AdminGitHubID == fmt.Sprintf("%d", githubUser.GetID()))
-		
+
 		if shouldBeAdmin && user.Role != "admin" {
 			user.Role = "admin"
 			h.db.Save(&user)
