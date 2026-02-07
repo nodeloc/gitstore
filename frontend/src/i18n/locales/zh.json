@@ -313,7 +313,8 @@
     "processing": "处理中...",
     "enterCard": "输入卡片信息",
     "back": "返回",
-    "pay": "支付"
+    "pay": "支付",
+    "notice": "数字产品，不支持退款。许可证仅限个人或组织使用。"
   },
   "settings": {
     "maintenance_check_enabled": "启用维护到期检查",

@@ -315,7 +315,8 @@
     "processing": "Processing...",
     "enterCard": "Enter Card Details",
     "back": "Back",
-    "pay": "Pay"
+    "pay": "Pay",
+    "notice": "Digital product. Non-refundable. License for personal or organizational use only."
   },
   "settings": {
     "maintenance_check_enabled": "Enable Maintenance Check",
