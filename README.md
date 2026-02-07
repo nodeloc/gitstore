@@ -170,15 +170,15 @@ To manage repository access for purchased plugins, you need a GitHub Personal Ac
 3. Configure the token:
    - **Note**: `gitstore admin token`
    - **Expiration**: No expiration (or custom)
-   - **Scopes**: Select `admin:org` → `write:org` (for managing organization members)
+   - **Scopes**: Select `repo` (Full control of private repositories)
 4. Generate and copy the token
 
 Add to `.env`:
 ```env
-GITHUB_ADMIN_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxx
+GITHUB_ADMIN_TOKEN=your_github_personal_access_token
 ```
 
-**Note**: This token is used to automatically add/remove users to your GitHub organization when they purchase/expire plugins.
+**Note**: This token is used to automatically add/remove users to your private repositories as collaborators when they purchase/expire plugins.
 
 ### 3️⃣ Stripe Payment Setup
 
@@ -187,54 +187,113 @@ Visit [Stripe Dashboard](https://dashboard.stripe.com/apikeys):
 ```env
 STRIPE_SECRET_KEY=sk_live_xxx        # Use 'live' for production, 'test' for testing
 STRIPE_PUBLISHABLE_KEY=pk_live_xxx
-STRIPE_WEBHOOK_SECRET=whsec_xxx
+STRIPE_WEBHOOK_SECRET=whsec_xxx      # Auto-generated on first run
 ```
 
-**Create Webhook** (for receiving payment status):
-- URL: `https://your-domain.com/api/webhooks/stripe`
-- Events: `payment_intent.succeeded`, `payment_intent.payment_failed`
+**Webhook Configuration**:
+- The system automatically creates webhooks on first run
+- Check logs for the generated `STRIPE_WEBHOOK_SECRET` 
+- Update `.env` with the webhook secret
+- Or manually create webhook in Dashboard:
+  - URL: `https://your-domain.com/api/webhooks/stripe`
+  - Events: `payment_intent.succeeded`, `payment_intent.payment_failed`
 
-### 4️⃣ Environment Variables
+### 4️⃣ Epay (易支付) Configuration (Optional)
+
+For Chinese payment methods (Alipay, WeChat Pay), configure Epay provider:
+
+```env
+EPAY_PID=your_epay_merchant_id
+EPAY_API_URL=https://your-epay-provider.com
+EPAY_PRIVATE_KEY=your_rsa_private_key_base64
+EPAY_PUBLIC_KEY=platform_rsa_public_key_base64
+EPAY_NOTIFY_URL=https://your-domain.com/api/webhooks/alipay
+```
+
+**Getting Epay Credentials**:
+1. Register with an Epay provider (易支付平台)
+2. Generate RSA key pair:
+   ```bash
+   # Generate private key
+   openssl genrsa -out private.pem 2048
+   # Generate public key
+   openssl rsa -in private.pem -pubout -out public.pem
+   ```
+3. Upload public key to Epay dashboard
+4. Set signature type to RSA/RSA2 in provider dashboard
+5. Copy private key (base64) and platform's public key to `.env`
+
+### 5️⃣ Environment Variables
 
 Complete `.env` configuration example:
 
 ```env
-# Application
+# Server Configuration
 APP_ENV=production
 APP_PORT=8080
 APP_URL=https://your-domain.com
 FRONTEND_URL=https://your-domain.com
 
-# Database
+# Database Configuration
 DB_HOST=postgres
 DB_PORT=5432
 DB_USER=postgres
 DB_PASSWORD=your_strong_password
 DB_NAME=git_store
+DB_SSLMODE=disable
 
-# GitHub OAuth
-GITHUB_CLIENT_ID=your_client_id
-GITHUB_CLIENT_SECRET=your_client_secret
+# GitHub OAuth Configuration
+GITHUB_CLIENT_ID=your_github_client_id
+GITHUB_CLIENT_SECRET=your_github_client_secret
 GITHUB_REDIRECT_URL=https://your-domain.com/api/auth/github/callback
-GITHUB_ORG_NAME=your-org-name
-GITHUB_ADMIN_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxx
+GITHUB_ADMIN_TOKEN=your_github_personal_access_token
 
-# JWT
-JWT_SECRET=your-random-64-character-secret-key
+# JWT Configuration
+JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
 JWT_EXPIRY_HOURS=720
 
-# Stripe
+# Stripe Configuration
 STRIPE_SECRET_KEY=sk_live_xxx
 STRIPE_PUBLISHABLE_KEY=pk_live_xxx
 STRIPE_WEBHOOK_SECRET=whsec_xxx
 
-# Email (Optional)
+# PayPal Configuration (Optional)
+PAYPAL_CLIENT_ID=your_paypal_client_id
+PAYPAL_CLIENT_SECRET=your_paypal_client_secret
+PAYPAL_MODE=live
+
+# Epay Configuration (Optional - for Chinese payments)
+EPAY_PID=1001
+EPAY_API_URL=https://p.ma3fu.com
+EPAY_PRIVATE_KEY=your_rsa_private_key
+EPAY_PUBLIC_KEY=platform_public_key
+EPAY_NOTIFY_URL=https://your-domain.com/api/webhooks/alipay
+
+# Email Configuration (Optional but recommended)
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_USER=your-email@gmail.com
-SMTP_PASSWORD=your-app-password
+SMTP_PASSWORD=your-gmail-app-password
 SMTP_FROM=noreply@your-domain.com
+SMTP_FROM_NAME=Plugin Store
+
+# Cron Configuration
+CRON_MAINTENANCE_CHECK=0 2 * * *
+
+# Admin Configuration
+ADMIN_EMAIL=admin@example.com
+ADMIN_GITHUB_ID=your_github_user_id
+
+# Default Maintenance Period
+DEFAULT_MAINTENANCE_MONTHS=12
 ```
+
+**Important Notes**:
+- 🔑 Change all default passwords and secrets
+- 🌐 Update domain URLs to your actual domain
+- 📧 Configure SMTP for email notifications
+- 💳 Use test keys for development, live keys for production
+- 🔐 Keep `.env` file secure and never commit to Git
 
 ---
 
