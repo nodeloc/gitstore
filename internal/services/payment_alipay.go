@@ -198,18 +198,18 @@ func (s *AlipayService) verifyWithType(content, sign, signType string) error {
 			log.Printf("[Epay Debug] ❌ MD5 sign generation failed: %v", err)
 			return err
 		}
-		
+
 		// 将签名转换为大写进行比较
 		actualSignUpper := strings.ToUpper(sign)
 		log.Printf("[Epay Debug] 🔐 MD5 Verification:")
 		log.Printf("[Epay Debug]   - Sign content: %s", content)
 		log.Printf("[Epay Debug]   - Expected: %s", expectedSign)
 		log.Printf("[Epay Debug]   - Actual:   %s", actualSignUpper)
-		
+
 		if actualSignUpper != expectedSign {
 			return fmt.Errorf("signature verification failed")
 		}
-		
+
 		log.Printf("[Epay Debug] ✅ MD5 signature verified successfully")
 		return nil
 	}

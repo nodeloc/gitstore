@@ -128,8 +128,15 @@ onMounted(async () => {
     const response = await api.get(`/plugins/id/${pluginId}`)
     plugin.value = response.data.plugin
     
-    // Initialize Stripe with publishable key from environment
-    const stripeKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || 'pk_test_51QamdqRxiUU8ECKhCaJ0yCyH6QdmfxSXUxqLIUgdTmhAmqjBhWN1b9SXfVTUIhbv5UqNXOiT8Xjw4jN1uo3D2cBj00y6KK7gjD'
+    // Get Stripe publishable key from backend API
+    const configResponse = await api.get('/config')
+    const stripeKey = configResponse.data.stripe_publishable_key
+    
+    if (!stripeKey) {
+      console.error('Stripe publishable key not configured')
+      error.value = 'Stripe payment not configured'
+      return
+    }
     stripePromise.value = loadStripe(stripeKey)
   } catch (err) {
     console.error('Failed to load plugin:', err)

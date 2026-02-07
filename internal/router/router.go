@@ -40,6 +40,7 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, cfg *config.Config) {
 	dashboardHandler := handlers.NewDashboardHandler(db, cfg)
 	githubWebhookHandler := handlers.NewGitHubWebhookHandler(db, cfg)
 	uploadHandler := handlers.NewUploadHandler("./uploads")
+	configHandler := handlers.NewConfigHandler(cfg)
 
 	// Dev auth handler (only in development)
 	var devAuthHandler *handlers.DevAuthHandler
@@ -54,6 +55,9 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, cfg *config.Config) {
 		api.GET("/health", func(c *gin.Context) {
 			c.JSON(200, gin.H{"status": "ok"})
 		})
+
+		// Public config
+		api.GET("/config", configHandler.GetPublicConfig)
 
 		// Dev login (only in development)
 		if cfg.AppEnv == "development" && devAuthHandler != nil {

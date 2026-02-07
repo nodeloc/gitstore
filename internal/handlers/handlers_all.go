@@ -22,6 +22,22 @@ import (
 	"gorm.io/gorm"
 )
 
+// ConfigHandler handles public config requests
+type ConfigHandler struct {
+	config *config.Config
+}
+
+func NewConfigHandler(cfg *config.Config) *ConfigHandler {
+	return &ConfigHandler{config: cfg}
+}
+
+// GetPublicConfig returns public configuration for frontend
+func (h *ConfigHandler) GetPublicConfig(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"stripe_publishable_key": h.config.StripePublishableKey,
+	})
+}
+
 // PluginHandler handles plugin-related requests
 type PluginHandler struct {
 	db     *gorm.DB
@@ -523,7 +539,7 @@ func (h *PaymentHandler) AlipayNotify(c *gin.Context) {
 
 	// 获取参数（支持 GET 和 POST）
 	params := make(map[string]string)
-	
+
 	// 优先从 Query 参数获取（易支付使用 GET）
 	if len(c.Request.URL.Query()) > 0 {
 		for key, values := range c.Request.URL.Query() {
