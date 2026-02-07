@@ -32,7 +32,7 @@ fi
 echo ""
 echo "1️⃣  停止旧服务..."
 cd $PROJECT_DIR
-docker-compose -f docker-compose.prod.yml down || true
+docker compose -f docker compose.prod.yml down || true
 
 # 2. 更新代码
 echo ""
@@ -50,7 +50,7 @@ npm run build
 echo ""
 echo "4️⃣  启动所有服务..."
 cd $PROJECT_DIR
-docker-compose -f docker-compose.prod.yml up -d --build
+docker compose -f docker compose.prod.yml up -d --build
 
 # 5. 等待服务启动
 echo ""
@@ -74,7 +74,7 @@ echo ""
 echo "✅ 部署完成!"
 echo ""
 echo "📊 服务状态:"
-docker-compose -f docker-compose.prod.yml ps
+docker compose -f docker compose.prod.yml ps
 echo ""
 echo "🌐 访问地址:"
 echo "   Nginx Proxy Manager 管理界面: http://YOUR_SERVER_IP:81"
@@ -90,10 +90,10 @@ echo "      - Forward Port: 80"
 echo "      - 启用 SSL (Let's Encrypt)"
 echo ""
 echo "📝 查看日志:"
-echo "   后端: docker-compose -f docker-compose.prod.yml logs -f backend"
-echo "   前端: docker-compose -f docker-compose.prod.yml logs -f frontend"
-echo "   数据库: docker-compose -f docker-compose.prod.yml logs -f postgres"
-echo "   NPM: docker-compose -f docker-compose.prod.yml logs -f nginx-proxy-manager"
+echo "   后端: docker compose -f docker compose.prod.yml logs -f backend"
+echo "   前端: docker compose -f docker compose.prod.yml logs -f frontend"
+echo "   数据库: docker compose -f docker compose.prod.yml logs -f postgres"
+echo "   NPM: docker compose -f docker compose.prod.yml logs -f nginx-proxy-manager"
 echo ""
 echo "🔧 直接访问测试 (通过内部网络):"
 echo "   docker exec gitstore-backend wget -O- http://localhost:8080/api/health"
