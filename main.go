@@ -11,6 +11,7 @@ import (
 	"github.com/nodeloc/git-store/internal/database"
 	"github.com/nodeloc/git-store/internal/router"
 	"github.com/nodeloc/git-store/internal/scheduler"
+	"github.com/nodeloc/git-store/internal/services"
 )
 
 func main() {
@@ -31,6 +32,14 @@ func main() {
 	// Auto migrate database models
 	if err := database.AutoMigrate(db); err != nil {
 		log.Fatalf("Failed to migrate database: %v", err)
+	}
+
+	// Setup Stripe webhook (if configured)
+	if cfg.StripeSecretKey != "" {
+		stripeService := services.NewStripeService(cfg)
+		if err := stripeService.SetupWebhook(); err != nil {
+			log.Printf("Warning: Failed to setup Stripe webhook: %v", err)
+		}
 	}
 
 	// Set Gin mode

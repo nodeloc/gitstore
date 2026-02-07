@@ -270,6 +270,7 @@ func (s *AlipayService) CreatePayment(req *AlipayTradeRequest) (*EpayCreateRespo
 	// 构建请求参数
 	params := map[string]string{
 		"pid":          s.pid,
+		"method":       "web",                                    // 接口类型：web（根据device自动判断）
 		"type":         "alipay",                                 // 支付方式：支付宝
 		"out_trade_no": req.OutTradeNo,                           // 商户订单号
 		"notify_url":   req.NotifyURL,                            // 异步通知地址
@@ -280,6 +281,7 @@ func (s *AlipayService) CreatePayment(req *AlipayTradeRequest) (*EpayCreateRespo
 		"device":       "pc",                                     // 设备类型：pc/mobile/wap
 		"param":        req.Body,                                 // 业务扩展参数
 		"timestamp":    strconv.FormatInt(time.Now().Unix(), 10), // 当前时间戳
+		"sign_type":    s.signType,                               // 签名类型：MD5/RSA
 	}
 
 	// 生成签名
