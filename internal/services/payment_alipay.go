@@ -185,29 +185,58 @@ func (s *AlipayService) sign(content string) (string, error) {
 	return base64.StdEncoding.EncodeToString(signature), nil
 }
 
+// verify 使用配置的签名类型验证（用于支付请求）
 func (s *AlipayService) verify(content, sign string) error {
-	if s.signType == "MD5" {
+	return s.verifyWithType(content, sign, s.signType)
+}
+
+func (s *AlipayService) verifyWithType(content, sign, signType string) error {
+	if signType == "MD5" {
 		// MD5验签
 		expectedSign, err := s.sign(content)
 		if err != nil {
+			log.Printf("[Epay Debug] ❌ MD5 sign generation failed: %v", err)
 			return err
 		}
-		if strings.ToUpper(sign) != expectedSign {
+		
+		// 将签名转换为大写进行比较
+		actualSignUpper := strings.ToUpper(sign)
+		log.Printf("[Epay Debug] 🔐 MD5 Verification:")
+		log.Printf("[Epay Debug]   - Sign content: %s", content)
+		log.Printf("[Epay Debug]   - Expected: %s", expectedSign)
+		log.Printf("[Epay Debug]   - Actual:   %s", actualSignUpper)
+		
+		if actualSignUpper != expectedSign {
 			return fmt.Errorf("signature verification failed")
 		}
+		
+		log.Printf("[Epay Debug] ✅ MD5 signature verified successfully")
 		return nil
 	}
 
 	// RSA验签
+	if s.publicKey == nil {
+		return fmt.Errorf("RSA public key not configured")
+	}
+
 	signBytes, err := base64.StdEncoding.DecodeString(sign)
 	if err != nil {
-		return err
+		log.Printf("[Epay Debug] Failed to decode RSA signature: %v", err)
+		return fmt.Errorf("failed to decode signature: %v", err)
 	}
 
 	hashed := crypto.SHA256.New()
 	hashed.Write([]byte(content))
 
-	return rsa.VerifyPKCS1v15(s.publicKey, crypto.SHA256, hashed.Sum(nil), signBytes)
+	err = rsa.VerifyPKCS1v15(s.publicKey, crypto.SHA256, hashed.Sum(nil), signBytes)
+	if err != nil {
+		log.Printf("[Epay Debug] RSA verification failed: %v", err)
+		log.Printf("[Epay Debug] Sign content: %s", content)
+		return fmt.Errorf("RSA signature verification failed: %v", err)
+	}
+
+	log.Printf("[Epay Debug] RSA signature verified successfully")
+	return nil
 }
 
 // buildSignContent 构建待签名字符串
@@ -305,8 +334,12 @@ func (s *AlipayService) VerifyNotify(params map[string]string) error {
 		return fmt.Errorf("missing sign parameter")
 	}
 
+	// 易支付回调参数中可能包含 sign_type=RSA，但实际使用MD5签名
+	// 强制使用配置的签名类型（MD5）进行验证
+	log.Printf("[Epay Debug] Notification params sign_type: %s, using configured sign_type: %s", params["sign_type"], s.signType)
+
 	signContent := s.buildSignContent(params)
-	return s.verify(signContent, sign)
+	return s.verifyWithType(signContent, sign, s.signType)
 }
 
 // TradePagePay 创建网页支付（兼容旧接口）
