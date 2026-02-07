@@ -157,23 +157,13 @@ const getStatusClass = (status) => {
   }
 }
 
-const retryPayment = async (order) => {
-  try {
-    // 重新发起支付
-    const response = await api.post('/payments/alipay/create', {
-      order_id: order.id
+const retryPayment = (order) => {
+  // 跳转回购买页面，让用户重新选择支付方式
+  if (order.plugin_id) {
+    router.push({
+      path: `/purchase/${order.plugin_id}`,
+      query: { order_id: order.id }
     })
-    
-    if (response.data.pay_url) {
-      // 跳转到支付页面
-      window.location.href = response.data.pay_url
-    } else if (response.data.qrcode) {
-      // 显示二维码
-      toast.info('Please scan the QR code: ' + response.data.qrcode)
-    }
-  } catch (error) {
-    console.error('Failed to retry payment:', error)
-    toast.error('Failed to initiate payment')
   }
 }
 </script>

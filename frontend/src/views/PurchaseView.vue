@@ -128,6 +128,20 @@ onMounted(async () => {
     const response = await api.get(`/plugins/id/${pluginId}`)
     plugin.value = response.data.plugin
     
+    // Check if there's an existing order (from retry payment)
+    const orderId = route.query.order_id
+    if (orderId) {
+      // Load existing order
+      try {
+        const orderResponse = await api.get(`/orders/${orderId}`)
+        currentOrder.value = orderResponse.data.order
+        console.log('Loaded existing order:', currentOrder.value)
+      } catch (err) {
+        console.error('Failed to load order:', err)
+        error.value = 'Failed to load order details'
+      }
+    }
+    
     // Get Stripe publishable key from backend API
     const configResponse = await api.get('/config')
     const stripeKey = configResponse.data.stripe_publishable_key
@@ -156,15 +170,21 @@ const processPurchase = async () => {
   error.value = null
   
   try {
-    // Step 1: Create order
-    const orderResponse = await api.post('/orders', {
-      plugin_id: route.params.pluginId,
-      payment_method: paymentMethod.value
-    })
+    let order = currentOrder.value
     
-    const order = orderResponse.data.order
-    console.log('Order created:', order)
-    currentOrder.value = order
+    // Step 1: Create order if not exists (or use existing order for retry)
+    if (!order) {
+      const orderResponse = await api.post('/orders', {
+        plugin_id: route.params.pluginId,
+        payment_method: paymentMethod.value
+      })
+      
+      order = orderResponse.data.order
+      console.log('Order created:', order)
+      currentOrder.value = order
+    } else {
+      console.log('Using existing order:', order)
+    }
     
     // Step 2: Process payment based on method
     if (paymentMethod.value === 'alipay') {
