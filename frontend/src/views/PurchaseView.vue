@@ -21,7 +21,7 @@
         <div class="card-body">
           <h2 class="card-title">{{ $t('purchase.selectPayment') }}</h2>
           
-          <div class="form-control">
+          <div class="form-control" v-if="enabledPaymentMethods.stripe">
             <label class="label cursor-pointer hover:bg-base-200 rounded-lg p-4 transition-colors">
               <span class="label-text flex items-center gap-3">
                 <svg class="w-12 h-8" viewBox="0 0 60 25" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -32,7 +32,7 @@
               <input type="radio" name="payment" value="stripe" v-model="paymentMethod" class="radio radio-primary" />
             </label>
           </div>
-          <div class="form-control">
+          <div class="form-control" v-if="enabledPaymentMethods.paypal">
             <label class="label cursor-pointer hover:bg-base-200 rounded-lg p-4 transition-colors">
               <span class="label-text flex items-center gap-3">
                 <svg class="w-12 h-8" viewBox="0 0 124 33" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -48,7 +48,7 @@
               <input type="radio" name="payment" value="paypal" v-model="paymentMethod" class="radio radio-primary" />
             </label>
           </div>
-          <div class="form-control">
+          <div class="form-control" v-if="enabledPaymentMethods.alipay">
             <label class="label cursor-pointer hover:bg-base-200 rounded-lg p-4 transition-colors">
               <span class="label-text flex items-center gap-3">
                 <svg class="w-12 h-8" viewBox="0 0 149.369 37.663" xmlns="http://www.w3.org/2000/svg">
@@ -103,14 +103,14 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { loadStripe } from '@stripe/stripe-js'
 import api from '@/utils/api'
 
 const route = useRoute()
 const router = useRouter()
-const paymentMethod = ref('alipay')
+const paymentMethod = ref('')
 const plugin = ref(null)
 const processing = ref(false)
 const error = ref(null)
@@ -120,6 +120,20 @@ const stripe = ref(null)
 const cardElement = ref(null)
 const currentOrder = ref(null)
 const clientSecret = ref(null)
+const enabledPaymentMethods = ref({
+  stripe: false,
+  paypal: false,
+  alipay: false
+})
+
+// Computed property to get available payment methods
+const availablePaymentMethods = computed(() => {
+  const methods = []
+  if (enabledPaymentMethods.value.stripe) methods.push('stripe')
+  if (enabledPaymentMethods.value.paypal) methods.push('paypal')
+  if (enabledPaymentMethods.value.alipay) methods.push('alipay')
+  return methods
+})
 
 onMounted(async () => {
   // Load plugin details
@@ -142,11 +156,17 @@ onMounted(async () => {
       }
     }
     
-    // Get Stripe publishable key from backend API
+    // Get configuration from backend API
     const configResponse = await api.get('/config')
     const stripeKey = configResponse.data.stripe_publishable_key
+    enabledPaymentMethods.value = configResponse.data.payment_methods || {}
     
-    if (!stripeKey) {
+    // Set default payment method to the first enabled one
+    if (availablePaymentMethods.value.length > 0) {
+      paymentMethod.value = availablePaymentMethods.value[0]
+    }
+    
+    if (!stripeKey && enabledPaymentMethods.value.stripe) {
       console.error('Stripe publishable key not configured')
       error.value = 'Stripe payment not configured'
       return

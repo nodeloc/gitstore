@@ -35,6 +35,11 @@ func NewConfigHandler(cfg *config.Config) *ConfigHandler {
 func (h *ConfigHandler) GetPublicConfig(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"stripe_publishable_key": h.config.StripePublishableKey,
+		"payment_methods": gin.H{
+			"stripe": h.config.PaymentStripeEnabled,
+			"paypal": h.config.PaymentPayPalEnabled,
+			"alipay": h.config.PaymentAlipayEnabled,
+		},
 	})
 }
 

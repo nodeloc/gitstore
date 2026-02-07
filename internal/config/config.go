@@ -32,6 +32,11 @@ type Config struct {
 	JWTSecret      string
 	JWTExpiryHours int
 
+	// Payment Methods
+	PaymentStripeEnabled bool
+	PaymentPayPalEnabled bool
+	PaymentAlipayEnabled bool
+
 	// Stripe
 	StripeSecretKey      string
 	StripePublishableKey string
@@ -95,6 +100,10 @@ func Load() *Config {
 
 		JWTSecret:      getEnv("JWT_SECRET", ""),
 		JWTExpiryHours: jwtExpiryHours,
+
+		PaymentStripeEnabled: getEnv("PAYMENT_STRIPE_ENABLED", "true") == "true",
+		PaymentPayPalEnabled: getEnv("PAYMENT_PAYPAL_ENABLED", "false") == "true",
+		PaymentAlipayEnabled: getEnv("PAYMENT_ALIPAY_ENABLED", "false") == "true",
 
 		StripeSecretKey:      getEnv("STRIPE_SECRET_KEY", ""),
 		StripePublishableKey: getEnv("STRIPE_PUBLISHABLE_KEY", ""),
