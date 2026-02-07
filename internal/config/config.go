@@ -105,7 +105,7 @@ func Load() *Config {
 		PayPalMode:         getEnv("PAYPAL_MODE", "sandbox"),
 
 		AlipayPID:        getEnv("EPAY_PID", ""),
-		AlipayAPIURL:     getEnv("EPAY_API_URL", "https://p.ma3fu.com/api/pay/create"),
+		AlipayAPIURL:     getEnv("EPAY_API_URL", "https://p.ma3fu.com"),
 		AlipayPrivateKey: getEnv("EPAY_PRIVATE_KEY", ""),
 		AlipayPublicKey:  getEnv("EPAY_PUBLIC_KEY", ""),
 		AlipayNotifyURL:  getEnv("EPAY_NOTIFY_URL", ""),

@@ -300,7 +300,10 @@ func (s *AlipayService) CreatePayment(req *AlipayTradeRequest) (*EpayCreateRespo
 		formData.Set(k, v)
 	}
 
-	resp, err := s.httpClient.PostForm(s.apiURL, formData)
+	// 构建完整的 API URL（在代码中拼接路径）
+	createPaymentURL := s.apiURL + "/api/pay/create"
+
+	resp, err := s.httpClient.PostForm(createPaymentURL, formData)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
