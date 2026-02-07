@@ -2,12 +2,12 @@
 
 set -e
 
-echo "🚀 Git-Store 生产部署脚本 (使用 Nginx Proxy Manager)"
+echo "🚀 GitStore 生产部署脚本 (使用 Nginx Proxy Manager)"
 echo "========================================"
 
 # 配置变量
 DOMAIN=${DOMAIN:-"discourseplugin.com"}
-PROJECT_DIR="/opt/git-store"
+PROJECT_DIR="/opt/gitstore"
 
 # 检查 root 权限
 if [ "$EUID" -ne 0 ]; then 
@@ -43,7 +43,7 @@ git pull origin main || echo "跳过 git pull"
 echo ""
 echo "3️⃣  构建前端..."
 cd $PROJECT_DIR/frontend
-npm install --production
+npm install
 npm run build
 
 # 4. 启动所有服务
@@ -61,7 +61,7 @@ sleep 15
 echo ""
 echo "6️⃣  健康检查..."
 for i in {1..30}; do
-    if docker exec git-store-backend wget --quiet --tries=1 --spider http://localhost:8080/api/health 2>/dev/null; then
+    if docker exec gitstore-backend wget --quiet --tries=1 --spider http://localhost:8080/api/health 2>/dev/null; then
         echo "   ✅ 后端服务启动成功"
         break
     fi
@@ -85,7 +85,7 @@ echo "   1. 访问 http://YOUR_SERVER_IP:81 登录 NPM"
 echo "   2. 修改默认密码"
 echo "   3. 添加代理主机 (Proxy Hosts):"
 echo "      - Domain: $DOMAIN"
-echo "      - Forward Hostname/IP: git-store-frontend"
+echo "      - Forward Hostname/IP: gitstore-frontend"
 echo "      - Forward Port: 80"
 echo "      - 启用 SSL (Let's Encrypt)"
 echo ""
@@ -96,4 +96,4 @@ echo "   数据库: docker-compose -f docker-compose.prod.yml logs -f postgres"
 echo "   NPM: docker-compose -f docker-compose.prod.yml logs -f nginx-proxy-manager"
 echo ""
 echo "🔧 直接访问测试 (通过内部网络):"
-echo "   docker exec git-store-backend wget -O- http://localhost:8080/api/health"
+echo "   docker exec gitstore-backend wget -O- http://localhost:8080/api/health"
