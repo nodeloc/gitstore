@@ -2,6 +2,10 @@
   "common": {
     "back": "Back"
   },
+  "notFound": {
+    "message": "The page you're looking for doesn't exist.",
+    "goHome": "Back to Home"
+  },
   "nav": {
     "home": "Home",
     "plugins": "Plugins",

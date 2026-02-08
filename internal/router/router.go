@@ -51,10 +51,12 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, cfg *config.Config) {
 	// Public routes
 	api := r.Group("/api")
 	{
-		// Health check
-		api.GET("/health", func(c *gin.Context) {
+		// Health check (support both GET and HEAD)
+		healthCheck := func(c *gin.Context) {
 			c.JSON(200, gin.H{"status": "ok"})
-		})
+		}
+		api.GET("/health", healthCheck)
+		api.HEAD("/health", healthCheck)
 
 		// Public config
 		api.GET("/config", configHandler.GetPublicConfig)
