@@ -13,6 +13,107 @@
           <h2 class="card-title text-3xl mb-6">{{ isEdit ? '编辑插件' : '创建插件' }}</h2>
 
           <form @submit.prevent="handleSubmit" class="space-y-6">
+            <!-- GitHub 仓库选择 - 放在最前面 -->
+            <div class="form-control">
+              <label class="label">
+                <span class="label-text">GitHub 仓库</span>
+                <span class="label-text-alt text-info">选择要关联的 GitHub 仓库</span>
+              </label>
+              
+              <!-- 未加载状态：显示可点击的输入框 -->
+              <div v-if="!reposLoaded && githubRepos.length === 0">
+                <button
+                  type="button"
+                  class="input input-bordered w-full text-left flex items-center justify-between"
+                  @click="loadGitHubRepos"
+                  :disabled="loading"
+                >
+                  <span v-if="!loading" class="text-base-content/60">点击加载 GitHub 仓库列表</span>
+                  <span v-else class="flex items-center gap-2">
+                    <span class="loading loading-spinner loading-sm"></span>
+                    加载中...
+                  </span>
+                </button>
+              </div>
+              
+              <!-- 已加载状态：自定义下拉选择 -->
+              <div v-else class="relative">
+                <!-- 搜索输入框 / 显示选中项 -->
+                <div class="relative">
+                  <input 
+                    v-model="repoSearch" 
+                    type="text" 
+                    class="input input-bordered w-full pr-24" 
+                    :placeholder="form.github_repo_name ? `已选: ${form.github_repo_name}` : `搜索仓库... (共 ${githubRepos.length} 个)`"
+                    @focus="showRepoDropdown = true"
+                  />
+                  <div class="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1">
+                    <button 
+                      v-if="repoSearch"
+                      type="button"
+                      class="btn btn-ghost btn-xs btn-circle"
+                      @click="repoSearch = ''"
+                    >
+                      ✕
+                    </button>
+                    <button 
+                      type="button"
+                      class="btn btn-ghost btn-xs"
+                      @click="showRepoDropdown = !showRepoDropdown"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+                
+                <!-- 下拉列表 -->
+                <div 
+                  v-show="showRepoDropdown && filteredRepos.length > 0"
+                  class="absolute z-50 w-full mt-2 bg-base-100 border border-base-300 rounded-lg shadow-lg max-h-96 overflow-auto"
+                >
+                  <div class="p-2 text-xs text-base-content/60 border-b border-base-300">
+                    找到 {{ filteredRepos.length }} 个仓库
+                  </div>
+                  <ul class="menu">
+                    <li v-for="repo in filteredRepos" :key="repo.id">
+                      <a 
+                        @click="selectRepo(repo)"
+                        class="flex flex-col items-start gap-1 py-3"
+                        :class="{ 'active': form.github_repo_id === repo.id }"
+                      >
+                        <div class="font-semibold">{{ repo.full_name }}</div>
+                        <div v-if="repo.description" class="text-xs text-base-content/60 line-clamp-1">
+                          {{ repo.description }}
+                        </div>
+                        <div class="flex gap-2 text-xs">
+                          <span v-if="repo.private" class="badge badge-sm badge-warning">Private</span>
+                          <span v-else class="badge badge-sm badge-ghost">Public</span>
+                          <span v-if="repo.language" class="badge badge-sm badge-ghost">{{ repo.language }}</span>
+                        </div>
+                      </a>
+                    </li>
+                  </ul>
+                </div>
+                
+                <!-- 点击外部关闭下拉 -->
+                <div 
+                  v-show="showRepoDropdown"
+                  class="fixed inset-0 z-40"
+                  @click="showRepoDropdown = false"
+                ></div>
+                
+                <!-- 显示已选择的仓库信息 -->
+                <div v-if="form.github_repo_name" class="mt-2 text-sm text-success flex items-center gap-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                  </svg>
+                  已关联: {{ form.github_repo_name }} (ID: {{ form.github_repo_id }})
+                </div>
+              </div>
+            </div>
+
             <div class="form-control">
               <label class="label"><span class="label-text">插件名称 *</span></label>
               <input v-model="form.name" type="text" class="input input-bordered" required />
@@ -54,48 +155,6 @@
             </div>
 
             <div class="grid grid-cols-2 gap-4">
-              <div class="form-control col-span-2">
-                <label class="label">
-                  <span class="label-text">GitHub 仓库</span>
-                  <button type="button" class="btn btn-sm btn-ghost" @click="loadGitHubRepos">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
-                    刷新列表
-                  </button>
-                </label>
-                
-                <div v-if="githubRepos.length > 0" class="space-y-2">
-                  <input 
-                    v-model="repoSearch" 
-                    type="text" 
-                    class="input input-bordered w-full input-sm" 
-                    placeholder="搜索仓库名称..."
-                  />
-                  <select v-model="selectedGitHubRepo" class="select select-bordered" @change="onGitHubRepoSelected">
-                    <option value="">选择仓库 (共 {{ filteredRepos.length }} 个)</option>
-                    <option v-for="repo in filteredRepos" :key="repo.id" :value="JSON.stringify(repo)">
-                      {{ repo.full_name }}
-                    </option>
-                  </select>
-                </div>
-                <div v-else class="alert alert-info">
-                  <span>点击刷新按钮加载您的 GitHub 仓库列表</span>
-                </div>
-              </div>
-
-              <div class="form-control">
-                <label class="label"><span class="label-text">GitHub 仓库 ID</span></label>
-                <input v-model="form.github_repo_id" type="text" class="input input-bordered" placeholder="123456789" />
-              </div>
-
-              <div class="form-control">
-                <label class="label"><span class="label-text">GitHub 仓库名称</span></label>
-                <input v-model="form.github_repo_name" type="text" class="input input-bordered" placeholder="owner/repo" />
-              </div>
-            </div>
-
-            <div class="grid grid-cols-2 gap-4">
               <div class="form-control">
                 <label class="label"><span class="label-text">价格 ($) *</span></label>
                 <input v-model.number="form.price" type="number" step="0.01" class="input input-bordered" required />
@@ -121,7 +180,8 @@
               </div>
             </div>
 
-            <div class="form-control">
+            <div class="form-c
+const showRepoDropdown = ref(false)ontrol">
               <label class="label"><span class="label-text">状态</span></label>
               <select v-model="form.status" class="select select-bordered">
                 <option value="draft">草稿（Draft）- 仅管理员可见</option>
@@ -164,6 +224,8 @@ const githubRepos = ref([])
 const categories = ref([])
 const selectedGitHubRepo = ref('')
 const repoSearch = ref('')
+const reposLoaded = ref(false)
+const showRepoDropdown = ref(false)
 
 const filteredRepos = computed(() => {
   // 暂时显示所有仓库以便调试
@@ -231,23 +293,29 @@ const loadPlugin = async () => {
 }
 
 const loadGitHubRepos = async () => {
+  if (reposLoaded.value) return // 已加载过则不重复加载
+  
   try {
+    loading.value = true
     const response = await api.get('/admin/github/repositories')
     githubRepos.value = response.data.repositories || []
+    reposLoaded.value = true
+    
     console.log('✅ 已加载仓库总数:', githubRepos.value.length)
     const privateCount = githubRepos.value.filter(r => r.private).length
     console.log('🔒 私有仓库数量:', privateCount)
     console.log('📂 公开仓库数量:', githubRepos.value.length - privateCount)
     
-    // 调试：显示前5个仓库的详细信息
-    console.log('前5个仓库详情:', githubRepos.value.slice(0, 5).map(r => ({
-      name: r.full_name,
-      private: r.private,
-      fork: r.fork
-    })))
+    if (githubRepos.value.length > 0) {
+      toast.success(`已加载 ${githubRepos.value.length} 个仓库`)
+    } else {
+      toast.warning('未找到可用的 GitHub 仓库')
+    }
   } catch (error) {
     console.error('Failed to load GitHub repos:', error)
     toast.error('加载 GitHub 仓库列表失败')
+  } finally {
+    loading.value = false
   }
 }
 
@@ -263,6 +331,26 @@ const onGitHubRepoSelected = () => {
       form.value.slug = repo.name.toLowerCase()
     }
   }
+}
+
+const selectRepo = (repo) => {
+  form.value.github_repo_id = repo.id
+  form.value.github_repo_name = repo.full_name
+  showRepoDropdown.value = false
+  repoSearch.value = ''
+  
+  // 自动填充插件名称和 slug（如果为空）
+  if (!form.value.name) {
+    form.value.name = repo.name
+  }
+  if (!form.value.slug) {
+    form.value.slug = repo.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')
+  }
+  if (!form.value.description && repo.description) {
+    form.value.description = repo.description
+  }
+  
+  toast.success(`已选择仓库: ${repo.full_name}`)
 }
 
 const handleSubmit = async () => {
