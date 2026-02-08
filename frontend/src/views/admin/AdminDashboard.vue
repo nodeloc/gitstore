@@ -1372,17 +1372,25 @@ async function uploadLogo(event, setting) {
     return
   }
 
-  // Convert to base64
-  const reader = new FileReader()
-  reader.onload = (e) => {
-    setting.value = e.target.result
+  try {
+    // Upload to server
+    const formData = new FormData()
+    formData.append('file', file)
+    
+    const response = await api.post('/admin/upload/image', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    })
+    
+    setting.value = response.data.url
     toast.success(t('admin.logoUploaded'))
-  }
-  reader.onerror = () => {
+  } catch (error) {
+    console.error('Failed to upload logo:', error)
     toast.error(t('admin.uploadFailed'))
+  } finally {
     event.target.value = ''
   }
-  reader.readAsDataURL(file)
 }
 
 async function saveSettings() {
@@ -1456,18 +1464,25 @@ async function uploadCategoryIcon(event) {
     return
   }
 
-  // Convert to base64
-  const reader = new FileReader()
-  reader.onload = (e) => {
-    categoryForm.value.icon_url = e.target.result
+  try {
+    // Upload to server
+    const formData = new FormData()
+    formData.append('file', file)
+    
+    const response = await api.post('/admin/upload/image', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    })
+    
+    categoryForm.value.icon_url = response.data.url
     toast.success(t('admin.iconUploaded'))
-  }
-  reader.onerror = () => {
+  } catch (error) {
+    console.error('Failed to upload category icon:', error)
     toast.error(t('admin.uploadFailed'))
-    categoryForm.value.icon_url = ''
+  } finally {
     event.target.value = ''
   }
-  reader.readAsDataURL(file)
 }
 
 async function handleCategorySubmit() {
