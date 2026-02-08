@@ -30,6 +30,7 @@ import { useI18n } from 'vue-i18n'
 import { MdPreview } from 'md-editor-v3'
 import 'md-editor-v3/lib/preview.css'
 import api from '@/utils/api'
+import { getPageSEO, updatePageSEO } from '@/utils/seo'
 
 const route = useRoute()
 const { t } = useI18n()
@@ -46,6 +47,39 @@ const fetchPage = async () => {
     const slug = route.params.slug
     const response = await api.get(`/pages/${slug}`)
     page.value = response.data
+    
+    // Update SEO with page data
+    if (page.value) {
+      // Get site settings
+      let siteSettings = {}
+      try {
+        const settingsResponse = await api.get('/settings/public')
+        if (settingsResponse.data.settings) {
+          siteSettings = settingsResponse.data.settings.reduce((acc, setting) => {
+            acc[setting.key] = setting.value
+            return acc
+          }, {})
+        }
+      } catch (err) {
+        console.log('Failed to load site settings for SEO')
+      }
+      
+      // Extract first paragraph as description if no excerpt
+      let description = ''
+      if (page.value.content) {
+        const firstParagraph = page.value.content.split('\n\n')[0]
+        description = firstParagraph.replace(/[#*`]/g, '').substring(0, 160)
+      }
+      
+      const seoData = getPageSEO('page', {
+        title: page.value.title,
+        slug: page.value.slug,
+        description: description,
+        excerpt: description
+      }, siteSettings)
+      
+      updatePageSEO(seoData)
+    }
   } catch (err) {
     error.value = t('pages.notFound')
     console.error('Error fetching page:', err)

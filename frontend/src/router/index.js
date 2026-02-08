@@ -1,7 +1,9 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { toast } from '@/utils/toast'
+import { getPageSEO, updatePageSEO } from '@/utils/seo'
 import i18n from '@/i18n'
+import api from '@/utils/api'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -131,6 +133,27 @@ router.beforeEach((to, from, next) => {
 
   console.log('✅ Route guard passed')
   next()
+})
+
+// Update SEO after each route change
+router.afterEach(async (to) => {
+  // Load site settings for SEO
+  let siteSettings = {}
+  try {
+    const response = await api.get('/settings/public')
+    if (response.data.settings) {
+      siteSettings = response.data.settings.reduce((acc, setting) => {
+        acc[setting.key] = setting.value
+        return acc
+      }, {})
+    }
+  } catch (error) {
+    console.log('Failed to load site settings for SEO')
+  }
+
+  // Get basic SEO data for the route
+  const seoData = getPageSEO(to.name || 'home', {}, siteSettings)
+  updatePageSEO(seoData)
 })
 
 export default router

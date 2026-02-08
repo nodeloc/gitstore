@@ -379,6 +379,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '@/utils/api'
+import { getPageSEO, updatePageSEO } from '@/utils/seo'
 
 const route = useRoute()
 const router = useRouter()
@@ -389,6 +390,30 @@ onMounted(async () => {
   try {
     const response = await api.get(`/licenses/${route.params.id}`)
     license.value = response.data.license
+    
+    // Update SEO with license data
+    if (license.value) {
+      // Get site settings
+      let siteSettings = {}
+      try {
+        const settingsResponse = await api.get('/settings/public')
+        if (settingsResponse.data.settings) {
+          siteSettings = settingsResponse.data.settings.reduce((acc, setting) => {
+            acc[setting.key] = setting.value
+            return acc
+          }, {})
+        }
+      } catch (err) {
+        console.log('Failed to load site settings for SEO')
+      }
+      
+      const seoData = getPageSEO('license-detail', {
+        id: license.value.id,
+        plugin_name: license.value.plugin?.name
+      }, siteSettings)
+      
+      updatePageSEO(seoData)
+    }
   } catch (error) {
     console.error('Failed to load license:', error)
   } finally {

@@ -113,6 +113,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { MdPreview } from 'md-editor-v3'
 import 'md-editor-v3/lib/preview.css'
 import api from '@/utils/api'
+import { getPageSEO, updatePageSEO } from '@/utils/seo'
 
 const route = useRoute()
 const router = useRouter()
@@ -124,6 +125,35 @@ onMounted(async () => {
   try {
     const response = await api.get(`/plugins/${route.params.slug}`)
     plugin.value = response.data.plugin
+    
+    // Update SEO with plugin data
+    if (plugin.value) {
+      // Get site settings
+      let siteSettings = {}
+      try {
+        const settingsResponse = await api.get('/settings/public')
+        if (settingsResponse.data.settings) {
+          siteSettings = settingsResponse.data.settings.reduce((acc, setting) => {
+            acc[setting.key] = setting.value
+            return acc
+          }, {})
+        }
+      } catch (err) {
+        console.log('Failed to load site settings for SEO')
+      }
+      
+      const seoData = getPageSEO('plugin-detail', {
+        name: plugin.value.name,
+        slug: plugin.value.slug,
+        short_description: plugin.value.short_description,
+        description: plugin.value.description,
+        category: plugin.value.category,
+        icon_url: plugin.value.icon_url,
+        image_url: plugin.value.image_url
+      }, siteSettings)
+      
+      updatePageSEO(seoData)
+    }
   } catch (error) {
     console.error('Failed to load plugin:', error)
   } finally {

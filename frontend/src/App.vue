@@ -28,20 +28,11 @@ onMounted(async () => {
     authStore.fetchUser()
   }
 
-  // Load site settings and update page title and favicon
+  // Load site settings and update favicon (title is now handled by router)
   try {
     const response = await api.get('/settings/public')
     if (response.data.settings) {
-      const siteNameSetting = response.data.settings.find(s => s.key === 'site_name')
-      const siteSubtitleSetting = response.data.settings.find(s => s.key === 'site_subtitle')
       const logoUrlSetting = response.data.settings.find(s => s.key === 'logo_url')
-      
-      // Update title
-      if (siteNameSetting && siteSubtitleSetting) {
-        document.title = `${siteNameSetting.value} - ${siteSubtitleSetting.value}`
-      } else if (siteNameSetting) {
-        document.title = siteNameSetting.value
-      }
       
       // Update favicon
       if (logoUrlSetting && logoUrlSetting.value) {
@@ -55,7 +46,7 @@ onMounted(async () => {
       }
     }
   } catch (error) {
-    console.log('Failed to load site settings for title and favicon')
+    console.log('Failed to load site settings for favicon')
   }
 })
 </script>
