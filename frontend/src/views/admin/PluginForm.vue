@@ -305,11 +305,8 @@ const handleUploadImg = async (files, callback) => {
           }
         })
         
-        // Return the full URL including the backend host
-        const baseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
-        return response.data.url.startsWith('http') 
-          ? response.data.url 
-          : `${baseURL}${response.data.url}`
+        // Return the URL directly (it's already a valid path like /uploads/xxx)
+        return response.data.url
       })
     )
     
