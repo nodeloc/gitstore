@@ -339,14 +339,12 @@ const selectRepo = (repo) => {
   showRepoDropdown.value = false
   repoSearch.value = ''
   
-  // 自动填充插件名称和 slug（如果为空）
-  if (!form.value.name) {
-    form.value.name = repo.name
-  }
-  if (!form.value.slug) {
-    form.value.slug = repo.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')
-  }
-  if (!form.value.description && repo.description) {
+  // 总是更新插件名称和 slug（基于新选择的仓库）
+  form.value.name = repo.name
+  form.value.slug = repo.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')
+  
+  // 如果新仓库有描述，则更新描述
+  if (repo.description) {
     form.value.description = repo.description
   }
   
