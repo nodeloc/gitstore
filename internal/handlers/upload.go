@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -23,6 +22,16 @@ func NewUploadHandler(uploadDir string) *UploadHandler {
 	}
 }
 
+// allowedImageTypes maps the type sniffed from the file contents to the
+// extension used on disk. The client-supplied Content-Type and filename are
+// attacker-controlled, so they never decide what gets stored and served.
+var allowedImageTypes = map[string]string{
+	"image/jpeg": ".jpg",
+	"image/png":  ".png",
+	"image/gif":  ".gif",
+	"image/webp": ".webp",
+}
+
 // UploadImage handles image upload for markdown editor
 func (h *UploadHandler) UploadImage(c *gin.Context) {
 	file, header, err := c.Request.FormFile("file")
@@ -32,16 +41,28 @@ func (h *UploadHandler) UploadImage(c *gin.Context) {
 	}
 	defer file.Close()
 
-	// Validate file type
-	contentType := header.Header.Get("Content-Type")
-	if !strings.HasPrefix(contentType, "image/") {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Only image files are allowed"})
-		return
-	}
-
 	// Validate file size (max 5MB)
 	if header.Size > 5*1024*1024 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "File size exceeds 5MB limit"})
+		return
+	}
+
+	// Detect the real type from the leading bytes instead of trusting the
+	// multipart Content-Type, which can claim "image/png" for an HTML or SVG
+	// payload that would then be served from /uploads.
+	head := make([]byte, 512)
+	n, err := io.ReadFull(file, head)
+	if err != nil && err != io.ErrUnexpectedEOF && err != io.EOF {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to read file"})
+		return
+	}
+	ext, ok := allowedImageTypes[http.DetectContentType(head[:n])]
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Only JPEG, PNG, GIF and WebP images are allowed"})
+		return
+	}
+	if _, err := file.Seek(0, io.SeekStart); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read file"})
 		return
 	}
 
@@ -51,8 +72,7 @@ func (h *UploadHandler) UploadImage(c *gin.Context) {
 		return
 	}
 
-	// Generate unique filename
-	ext := filepath.Ext(header.Filename)
+	// Generate unique filename with the extension that matches the bytes.
 	filename := fmt.Sprintf("%s_%d%s", uuid.New().String(), time.Now().Unix(), ext)
 	filePath := filepath.Join(h.uploadDir, filename)
 
