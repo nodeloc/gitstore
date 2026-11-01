@@ -24,9 +24,9 @@ func NewDevAuthHandler(db *gorm.DB, cfg *config.Config) *DevAuthHandler {
 
 // DevLogin - 开发环境直接登录（仅用于测试）
 func (h *DevAuthHandler) DevLogin(c *gin.Context) {
-	// 只在开发环境启用
-	if h.config.AppEnv == "production" {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Dev login disabled in production"})
+	// 必须显式开启，且生产环境永远禁用
+	if !h.config.DevLoginEnabled || h.config.AppEnv == "production" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Dev login is disabled"})
 		return
 	}
 

@@ -42,9 +42,12 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, cfg *config.Config) {
 	uploadHandler := handlers.NewUploadHandler("./uploads")
 	configHandler := handlers.NewConfigHandler(cfg)
 
-	// Dev auth handler (only in development)
+	// Dev auth handler. It hands out a token for any account without a
+	// password, so it stays off unless DEV_LOGIN_ENABLED=true and the server is
+	// not running in production.
+	devLoginAllowed := cfg.DevLoginEnabled && cfg.AppEnv != "production"
 	var devAuthHandler *handlers.DevAuthHandler
-	if cfg.AppEnv == "development" {
+	if devLoginAllowed {
 		devAuthHandler = handlers.NewDevAuthHandler(db, cfg)
 	}
 
@@ -61,8 +64,8 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB, cfg *config.Config) {
 		// Public config
 		api.GET("/config", configHandler.GetPublicConfig)
 
-		// Dev login (only in development)
-		if cfg.AppEnv == "development" && devAuthHandler != nil {
+		// Dev login (explicit opt-in only)
+		if devLoginAllowed && devAuthHandler != nil {
 			api.GET("/dev/login", devAuthHandler.DevLogin)
 		}
 

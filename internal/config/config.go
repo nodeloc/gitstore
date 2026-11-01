@@ -12,6 +12,11 @@ type Config struct {
 	AppURL      string
 	FrontendURL string
 
+	// DevLoginEnabled turns on GET /api/dev/login, which hands out a token for
+	// any existing account without a password. It is off unless an operator
+	// explicitly asks for it, even when APP_ENV is not "production".
+	DevLoginEnabled bool
+
 	// Database
 	DBHost     string
 	DBPort     string
@@ -84,6 +89,8 @@ func Load() *Config {
 		AppPort:     getEnv("APP_PORT", "8080"),
 		AppURL:      getEnv("APP_URL", "http://localhost:8080"),
 		FrontendURL: getEnv("FRONTEND_URL", "http://localhost:3000"),
+
+		DevLoginEnabled: getEnv("DEV_LOGIN_ENABLED", "false") == "true",
 
 		DBHost:     getEnv("DB_HOST", "localhost"),
 		DBPort:     getEnv("DB_PORT", "5432"),
