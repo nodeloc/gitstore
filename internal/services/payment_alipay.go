@@ -5,7 +5,6 @@ import (
 	"crypto/md5"
 	"crypto/rand"
 	"crypto/rsa"
-	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/hex"
@@ -13,7 +12,6 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"net/url"
 	"sort"
@@ -71,11 +69,7 @@ func NewAlipayService(cfg *config.Config) (*AlipayService, error) {
 		apiURL = "https://p.ma3fu.com/mapi.php"
 	}
 
-	// 创建跳过TLS证书验证的HTTP客户端（用于测试环境）
 	httpClient := &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-		},
 		Timeout: 30 * time.Second,
 	}
 
@@ -165,12 +159,9 @@ func (s *AlipayService) sign(content string) (string, error) {
 	if s.signType == "MD5" {
 		// MD5签名：待签名字符串 + 密钥，结果小写
 		signString := content + s.key
-		log.Printf("[Epay Debug] Final sign string: %s", signString)
 		h := md5.New()
 		h.Write([]byte(signString))
-		result := hex.EncodeToString(h.Sum(nil)) // 小写
-		log.Printf("[Epay Debug] MD5 result: %s", result)
-		return result, nil
+		return hex.EncodeToString(h.Sum(nil)), nil // 小写
 	}
 
 	// RSA签名
@@ -195,22 +186,14 @@ func (s *AlipayService) verifyWithType(content, sign, signType string) error {
 		// MD5验签
 		expectedSign, err := s.sign(content)
 		if err != nil {
-			log.Printf("[Epay Debug] ❌ MD5 sign generation failed: %v", err)
 			return err
 		}
 
 		// 将签名转换为大写进行比较
-		actualSignUpper := strings.ToUpper(sign)
-		log.Printf("[Epay Debug] 🔐 MD5 Verification:")
-		log.Printf("[Epay Debug]   - Sign content: %s", content)
-		log.Printf("[Epay Debug]   - Expected: %s", expectedSign)
-		log.Printf("[Epay Debug]   - Actual:   %s", actualSignUpper)
-
-		if actualSignUpper != expectedSign {
+		if strings.ToUpper(sign) != expectedSign {
 			return fmt.Errorf("signature verification failed")
 		}
 
-		log.Printf("[Epay Debug] ✅ MD5 signature verified successfully")
 		return nil
 	}
 
@@ -221,7 +204,6 @@ func (s *AlipayService) verifyWithType(content, sign, signType string) error {
 
 	signBytes, err := base64.StdEncoding.DecodeString(sign)
 	if err != nil {
-		log.Printf("[Epay Debug] Failed to decode RSA signature: %v", err)
 		return fmt.Errorf("failed to decode signature: %v", err)
 	}
 
@@ -230,12 +212,9 @@ func (s *AlipayService) verifyWithType(content, sign, signType string) error {
 
 	err = rsa.VerifyPKCS1v15(s.publicKey, crypto.SHA256, hashed.Sum(nil), signBytes)
 	if err != nil {
-		log.Printf("[Epay Debug] RSA verification failed: %v", err)
-		log.Printf("[Epay Debug] Sign content: %s", content)
 		return fmt.Errorf("RSA signature verification failed: %v", err)
 	}
 
-	log.Printf("[Epay Debug] RSA signature verified successfully")
 	return nil
 }
 
@@ -259,10 +238,7 @@ func (s *AlipayService) buildSignContent(params map[string]string) string {
 		}
 	}
 
-	content := strings.Join(signParts, "&")
-	log.Printf("[Epay Debug] Sign content before key: %s", content)
-	log.Printf("[Epay Debug] Key: %s", s.key)
-	return content
+	return strings.Join(signParts, "&")
 }
 
 // CreatePayment 创建易支付订单
@@ -286,12 +262,10 @@ func (s *AlipayService) CreatePayment(req *AlipayTradeRequest) (*EpayCreateRespo
 
 	// 生成签名
 	signContent := s.buildSignContent(params)
-	log.Printf("[Epay Debug] Sign content: %s", signContent)
 	sign, err := s.sign(signContent)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate signature: %w", err)
 	}
-	log.Printf("[Epay Debug] Generated sign: %s", sign)
 	params["sign"] = sign
 
 	// 构建POST请求
@@ -314,15 +288,11 @@ func (s *AlipayService) CreatePayment(req *AlipayTradeRequest) (*EpayCreateRespo
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
 
-	log.Printf("[Epay Debug] Response body: %s", string(body))
-
 	// 解析响应
 	var result EpayCreateResponse
 	if err := json.Unmarshal(body, &result); err != nil {
 		return nil, fmt.Errorf("failed to parse response: %w, body: %s", err, string(body))
 	}
-
-	log.Printf("[Epay Debug] Response code: %d, msg: %s", result.Code, result.Msg)
 
 	// code=0 表示成功（易支付标准返回）
 	if result.Code != 0 {
@@ -341,8 +311,6 @@ func (s *AlipayService) VerifyNotify(params map[string]string) error {
 
 	// 易支付回调参数中可能包含 sign_type=RSA，但实际使用MD5签名
 	// 强制使用配置的签名类型（MD5）进行验证
-	log.Printf("[Epay Debug] Notification params sign_type: %s, using configured sign_type: %s", params["sign_type"], s.signType)
-
 	signContent := s.buildSignContent(params)
 	return s.verifyWithType(signContent, sign, s.signType)
 }
