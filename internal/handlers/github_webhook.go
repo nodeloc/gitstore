@@ -1,9 +1,15 @@
 package handlers
 
 import (
+	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
+	"io"
 	"log"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/nodeloc/git-store/internal/config"
@@ -41,12 +47,33 @@ type GitHubInstallationEvent struct {
 	} `json:"repositories"`
 }
 
-// HandleGitHubAppWebhook handles GitHub App installation and other events
+// HandleGitHubAppWebhook handles GitHub App installation and other events.
+// The payload is only trusted after its X-Hub-Signature-256 HMAC matches
+// GITHUB_WEBHOOK_SECRET; otherwise anyone could forge installation events.
 func (h *GitHubWebhookHandler) HandleGitHubAppWebhook(c *gin.Context) {
 	// Get event type from header
 	eventType := c.GetHeader("X-GitHub-Event")
 
 	log.Printf("[GitHub Webhook] Received event: %s", eventType)
+
+	if strings.TrimSpace(h.config.GitHubWebhookSecret) == "" {
+		log.Printf("[GitHub Webhook] GITHUB_WEBHOOK_SECRET is not configured; refusing the request")
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Webhook secret is not configured"})
+		return
+	}
+
+	payload, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid payload"})
+		return
+	}
+	if !verifyGitHubSignature(payload, c.GetHeader("X-Hub-Signature-256"), h.config.GitHubWebhookSecret) {
+		log.Printf("[GitHub Webhook] Rejected request with an invalid signature")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid signature"})
+		return
+	}
+	// Put the body back for the handlers that bind it.
+	c.Request.Body = io.NopCloser(bytes.NewReader(payload))
 
 	switch eventType {
 	case "installation":
@@ -57,6 +84,22 @@ func (h *GitHubWebhookHandler) HandleGitHubAppWebhook(c *gin.Context) {
 		log.Printf("[GitHub Webhook] Unhandled event type: %s", eventType)
 		c.JSON(http.StatusOK, gin.H{"message": "Event received"})
 	}
+}
+
+// verifyGitHubSignature checks the sha256=<hex> HMAC GitHub sends with every
+// webhook delivery.
+func verifyGitHubSignature(payload []byte, header, secret string) bool {
+	const prefix = "sha256="
+	if !strings.HasPrefix(header, prefix) {
+		return false
+	}
+	expected, err := hex.DecodeString(strings.TrimPrefix(header, prefix))
+	if err != nil {
+		return false
+	}
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write(payload)
+	return hmac.Equal(mac.Sum(nil), expected)
 }
 
 func (h *GitHubWebhookHandler) handleInstallationEvent(c *gin.Context) {

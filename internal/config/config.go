@@ -28,6 +28,9 @@ type Config struct {
 	// GitHub Personal Access Token
 	GitHubAdminToken string // Personal Access Token for managing collaborators
 
+	// GitHub Webhook
+	GitHubWebhookSecret string // HMAC secret used to verify X-Hub-Signature-256
+
 	// JWT
 	JWTSecret      string
 	JWTExpiryHours int
@@ -97,6 +100,8 @@ func Load() *Config {
 		GitHubRedirectURL:  getEnv("GITHUB_REDIRECT_URL", ""),
 
 		GitHubAdminToken: getEnv("GITHUB_ADMIN_TOKEN", ""),
+
+		GitHubWebhookSecret: getEnv("GITHUB_WEBHOOK_SECRET", ""),
 
 		JWTSecret:      getEnv("JWT_SECRET", ""),
 		JWTExpiryHours: jwtExpiryHours,
