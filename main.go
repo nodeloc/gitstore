@@ -23,6 +23,15 @@ func main() {
 	// Load configuration
 	cfg := config.Load()
 
+	// A predictable signing key makes every token forgeable. Refuse to run
+	// with one in production and warn loudly everywhere else.
+	if problem := cfg.WeakJWTSecret(); problem != "" {
+		if cfg.AppEnv == "production" {
+			log.Fatalf("Refusing to start: %s. Generate one with: openssl rand -hex 32", problem)
+		}
+		log.Printf("WARNING: %s. Set a random JWT_SECRET before deploying.", problem)
+	}
+
 	// Initialize database
 	db, err := database.NewPostgresDB(cfg)
 	if err != nil {

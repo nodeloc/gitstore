@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"strconv"
+	"strings"
 )
 
 type Config struct {
@@ -134,6 +135,24 @@ func Load() *Config {
 
 		DefaultMaintenanceMonths: defaultMaintenanceMonths,
 	}
+}
+
+// WeakJWTSecret reports why the configured JWT secret should not be used to
+// sign tokens, or "" when it is acceptable. Tokens signed with an empty or
+// well-known key can be forged by anyone, so production refuses to start.
+func (c *Config) WeakJWTSecret() string {
+	secret := strings.TrimSpace(c.JWTSecret)
+	switch {
+	case secret == "":
+		return "JWT_SECRET is not set; tokens would be signed with an empty key"
+	case secret == "your-super-secret-jwt-key-change-this-in-production",
+		secret == "change-me-to-a-random-32-plus-character-secret",
+		secret == "change-me", secret == "secret", secret == "changeme":
+		return "JWT_SECRET still has its example value"
+	case len(secret) < 32:
+		return "JWT_SECRET is shorter than 32 characters"
+	}
+	return ""
 }
 
 func getEnv(key, defaultValue string) string {
